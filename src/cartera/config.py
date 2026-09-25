@@ -52,6 +52,12 @@ class Settings:
     llm_base_url: str | None = None
     llm_model: str = "local"
     llm_timeout_seconds: float = 120.0
+    #: The endpoint for analysis, treated as less trusted than the one above: the
+    #: code refuses to send it the full figures. ``None`` means no remote analysis,
+    #: which is the shipped state.
+    analysis_llm_base_url: str | None = None
+    analysis_llm_model: str = "remote"
+    analysis_llm_timeout_seconds: float = 120.0
     #: Defaults for ``cartera web``. The host is still checked against loopback in
     #: the web module, so setting it to something open is refused rather than obeyed.
     web_host: str = "127.0.0.1"
@@ -123,6 +129,9 @@ def load_settings(env_file: Path | None = None, overrides: dict[str, str] | None
         llm_base_url=get("CARTERA_LLM_BASE_URL"),
         llm_model=get("CARTERA_LLM_MODEL", "local") or "local",
         llm_timeout_seconds=float(get("CARTERA_LLM_TIMEOUT_S", "120") or 120),
+        analysis_llm_base_url=get("CARTERA_ANALYSIS_LLM_BASE_URL"),
+        analysis_llm_model=get("CARTERA_ANALYSIS_LLM_MODEL", "remote") or "remote",
+        analysis_llm_timeout_seconds=float(get("CARTERA_ANALYSIS_LLM_TIMEOUT_S", "120") or 120),
         web_host=get("CARTERA_WEB_HOST", "127.0.0.1") or "127.0.0.1",
         web_port=int(get("CARTERA_WEB_PORT", "8787") or 8787),
         env_file_used=candidate_env if candidate_env.is_file() else None,

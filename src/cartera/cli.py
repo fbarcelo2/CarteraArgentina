@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json as jsonlib
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from dotenv import dotenv_values
@@ -31,6 +31,11 @@ from cartera.domain.proposals import ProposalAction
 from cartera.ports.market_data import MarketSession
 from cartera.security.secrets import SECRET_KEYS, keyring_available, keyring_backend, store_secret
 from cartera.spec import manifest
+
+if TYPE_CHECKING:
+    # Annotations only: importing the analysis module for real would pull the HTTP
+    # client into every command, including the ones that never narrate anything.
+    from cartera.app.analysis import AnalysisResult, ProjectionLevel, Scope
 
 app = typer.Typer(help="Read-only portfolio analytics for Argentine capital markets.", no_args_is_help=True)
 config_app = typer.Typer(help="Inspect and hydrate configuration.", no_args_is_help=True)
@@ -593,37 +598,83 @@ def analyze(
         str | None,
         typer.Option("--focus", help='Optional area to concentrate on, e.g. "concentration".'),
     ] = None,
+    scope: Annotated[
+        str,
+        typer.Option("--scope", help="Where it goes: 'local' keeps the full figures in, 'remote' sends a projection."),
+    ] = "local",
+    level: Annotated[
+        str | None,
+        typer.Option("--level", help="How much may travel: full, aggregated or structural. Defaults per scope."),
+    ] = None,
+    preview: Annotated[
+        bool,
+        typer.Option("--preview", help="Print the payload that would be sent, and stop without sending it."),
+    ] = False,
     env_file: ENV_OPTION = None,
     as_json: JSON_OPTION = False,
 ) -> None:
     """Narrate the report and the scoreboard with the configured model.
 
     Every figure it is handed was computed here. A number in the answer that cannot
-    be traced back to the input is reported, not hidden.
+    be traced back to the input is reported, not hidden. With ``--scope remote`` the
+    endpoint never sees the full figures — tickers, quantities and cost basis are
+    projected out — and asking it for them is refused, not obeyed.
     """
-    from cartera.app.analysis import AnalysisResult, NarrativeService, backend_from_settings, narratable_figures
+    from cartera.app.analysis import (
+        ANALYSIS_SYSTEM_PROMPT,
+        SYSTEM_PROMPT,
+        NarrativeService,
+        ProjectionLevel,
+        Scope,
+        backend_for_scope,
+        scope_level,
+    )
 
     settings = _settings(env_file)
-    backend = backend_from_settings(settings)
+    try:
+        chosen_scope = Scope(scope.strip().lower())
+        chosen_level = ProjectionLevel(level.strip().lower()) if level else None
+        effective = scope_level(chosen_scope, chosen_level)
+    except ValueError as exc:
+        console.print(f"[red]unknown scope or level:[/red] {exc}")
+        raise typer.Exit(code=2) from exc
+    except CarteraError as exc:
+        _guard("analyze", exc)
+        return
+
+    if preview:
+        # A different mode of the command rather than a flag woven through the normal
+        # path: nothing is sent, so no endpoint is needed to look at what would be.
+        _print_preview(settings, chosen_scope, effective)
+        return
+
+    backend = backend_for_scope(settings, chosen_scope)
     if backend is None:
-        console.print("[yellow]no analysis backend configured.[/yellow] Set CARTERA_ANALYSIS_BASE_URL")
-        console.print("to an OpenAI-compatible endpoint. Nothing else in this tool needs one.")
+        variable = "CARTERA_ANALYSIS_LLM_BASE_URL" if chosen_scope is Scope.REMOTE else "CARTERA_LLM_BASE_URL"
+        console.print(f"[yellow]no {chosen_scope.value} backend configured.[/yellow] Set {variable} to an")
+        console.print("OpenAI-compatible endpoint. Nothing else in this tool needs one.")
+        console.print("To see what a scope would send without configuring anything: --preview")
         raise typer.Exit(code=2)
+
+    local = chosen_scope is Scope.LOCAL
+    model = settings.llm_model if local else settings.analysis_llm_model
+    prompt = SYSTEM_PROMPT if local else ANALYSIS_SYSTEM_PROMPT
 
     store = SqlitePortfolioStore(settings.db_path)
 
     async def run() -> AnalysisResult:
-        market = MarketService(settings)
+        figures = await _figures(settings, store)
         try:
-            report = await ReportService(settings, store, market).build()
-            board = ProposalService(store, market).scoreboard()
-            figures = narratable_figures(report, board)
-            return await NarrativeService(backend, settings.llm_model).narrate(figures, focus)
+            return await NarrativeService(backend, model, prompt).narrate(
+                figures,
+                focus,
+                scope=chosen_scope,
+                level=chosen_level,
+            )
         finally:
             # Closed in the same loop that opened it: an httpx pool is bound to its
             # event loop, and closing it from another one raises.
             await backend.aclose()
-            await market.aclose()
 
     try:
         try:
@@ -637,14 +688,46 @@ def analyze(
     if as_json:
         console.print_json(result.model_dump_json())
         return
+    _print_analysis(result)
+
+
+def _print_analysis(result: AnalysisResult) -> None:
+    """The prose, the scope it came from, and the verdict on its numbers."""
     console.print(result.narrative)
+    console.print(f"[dim]scope {result.scope}, level {result.level}, backend: {result.backend}[/dim]")
     if result.verified:
-        console.print(f"\n[green]every number traces back to the computed figures[/green] (backend: {result.backend})")
+        console.print("[green]every number traces back to the figures that were sent[/green]")
     else:
         console.print(
             f"\n[red]unverified numbers:[/red] {', '.join(result.unverified_numbers)} — "
-            "they are not in the computed figures, so treat the note as unreliable.",
+            "they are not in the figures that were sent, so treat the note as unreliable.",
         )
+
+
+async def _figures(settings: Settings, store: SqlitePortfolioStore) -> dict[str, object]:
+    """The payload as computed here, before any projection."""
+    from cartera.app.analysis import narratable_figures
+
+    market = MarketService(settings)
+    try:
+        report = await ReportService(settings, store, market).build()
+        board = ProposalService(store, market).scoreboard()
+        return narratable_figures(report, board)
+    finally:
+        await market.aclose()
+
+
+def _print_preview(settings: Settings, scope: Scope, level: ProjectionLevel) -> None:
+    """Print what a scope would send, and send nothing at all."""
+    from cartera.app.analysis import project
+
+    store = SqlitePortfolioStore(settings.db_path)
+    try:
+        figures = asyncio.run(_figures(settings, store))
+    finally:
+        store.close()
+    console.print_json(jsonlib.dumps(project(figures, level), ensure_ascii=False, default=str))
+    console.print(f"[dim]scope {scope.value}, level {level.value} — nothing was sent.[/dim]")
 
 
 def main() -> None:
