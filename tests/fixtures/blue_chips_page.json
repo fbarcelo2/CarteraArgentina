@@ -1,0 +1,38 @@
+{
+  "content": {
+    "page_number": 1,
+    "page_count": 1,
+    "page_size": 200,
+    "total_elements_count": 2
+  },
+  "data": [
+    {
+      "symbol": "GGAL",
+      "settlementType": "1",
+      "settlementPrice": 5200,
+      "trade": 5195,
+      "closingPrice": 0,
+      "previousClosingPrice": 5100,
+      "openingPrice": 5120,
+      "tradingHighPrice": 5250,
+      "tradingLowPrice": 5080,
+      "denominationCcy": "ARS",
+      "bidPrice": 5190,
+      "offerPrice": 5200,
+      "volume": 250000,
+      "volumeAmount": 1300000000,
+      "securityType": "CS",
+      "tradeHour": "14:48:10",
+      "market": "BYMA"
+    },
+    {
+      "symbol": "ALUA",
+      "settlementType": "2",
+      "settlementPrice": 890,
+      "denominationCcy": "ARS",
+      "tradeHour": "14:47:00",
+      "securityType": "CS"
+    }
+  ],
+  "empty": false
+}

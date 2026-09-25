@@ -1,0 +1,78 @@
+"""Machine-readable manifest of what this installation can do.
+
+Rationale (project standard, auto-discovery): an agent or an operator must be
+able to ask a running installation what it exposes instead of reading docs that
+drift. Both front-ends serve this same manifest — the CLI as ``cartera spec``
+and the MCP server as a resource.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from cartera import __version__
+
+CLI_COMMANDS: tuple[str, ...] = (
+    "config show",
+    "config hydrate",
+    "doctor",
+    "market quotes",
+    "market session",
+    "portfolio import",
+    "portfolio summary",
+    "report",
+    "spec",
+)
+
+MCP_TOOLS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "market_session",
+        "description": "Whether the market trades today, plus opening and closing times.",
+    },
+    {
+        "name": "market_quotes",
+        "description": "Delayed quotes for specific tickers. Read-only; no credentials.",
+        "arguments": {"tickers": ["GGAL"], "universes": ["cedears"]},
+    },
+    {
+        "name": "portfolio_import",
+        "description": "Import a local JSON snapshot into the append-only ledger.",
+        "arguments": {"path": "/home/user/mi-cartera.json", "label": "septiembre"},
+    },
+    {
+        "name": "portfolio_summary",
+        "description": "Holdings and cash from the latest imported snapshot.",
+    },
+    {
+        "name": "portfolio_report",
+        "description": (
+            "Deterministic valuation, unrealized/realized P&L and gate results. "
+            "Refuses to produce numbers when quotes are stale."
+        ),
+    },
+    {"name": "config_show", "description": "Effective non-secret configuration."},
+)
+
+GUARANTEES: tuple[str, ...] = (
+    "no order execution capability",
+    "no broker credentials stored",
+    "metrics computed in code, never by a model",
+    "append-only ledger enforced by database triggers",
+    "hash-chained audit log",
+    "stale quotes refused instead of reported",
+)
+
+
+def manifest() -> dict[str, Any]:
+    """Return the capability manifest for this installation."""
+    return {
+        "name": "cartera-argentina",
+        "version": __version__,
+        "kind": "portfolio-analytics",
+        "read_only": True,
+        "executes_orders": False,
+        "cli": list(CLI_COMMANDS),
+        "mcp_tools": list(MCP_TOOLS),
+        "guarantees": list(GUARANTEES),
+        "docs": {"architecture": "docs/ARCHITECTURE.md", "adr": "docs/adr/"},
+    }

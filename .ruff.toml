@@ -1,0 +1,26 @@
+# Ruff configuration — aligned with the CentinelaSaaS standard rule set.
+# Differences from that project are deliberate: this is new code, so no
+# "pre-existing legacy" suppressions are inherited.
+
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = [
+  "E", "F", "W", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "DTZ",
+  "T20", "RET", "SIM", "ARG", "PTH", "ERA", "PL", "PLE", "PLW", "RUF",
+]
+ignore = [
+  "PLR0913",  # Many arguments: acceptable on analytics signatures
+  "S105",     # Hardcoded password: config defaults are intentionally empty
+  "S104",     # Binding to all interfaces: not used, but harmless in config parsing
+  "PLC0415",  # Import inside a function: intentional for optional extras (mcp, keyring)
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004", "ARG001", "ARG002"]
+"src/cartera/cli.py" = ["T201"]        # the CLI prints on purpose
+"src/cartera/mcp_server.py" = ["T201", "PLR0915"]  # a flat registry of tool definitions
+
+[lint.isort]
+known-first-party = ["cartera"]

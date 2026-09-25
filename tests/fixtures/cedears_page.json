@@ -1,0 +1,19 @@
+[
+  {
+    "symbol": "AAPL",
+    "settlementType": "1",
+    "settlementPrice": 11500.0,
+    "previousClosingPrice": 11400.0,
+    "denominationCcy": "ARS",
+    "securityType": "CD",
+    "tradeHour": "14:48:28"
+  },
+  {
+    "symbol": "KO",
+    "settlementType": "1",
+    "settlementPrice": 0.0,
+    "denominationCcy": "ARS",
+    "securityType": "CD",
+    "tradeHour": "14:46:00"
+  }
+]

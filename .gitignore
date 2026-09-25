@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Local configuration and secrets — never commit
+.env
+.env.local
+*.pem
+*.key
+
+# Runtime data: database, snapshots, generated reports
+data/
+*.db
+*.sqlite
+*.sqlite3
+reports/
+
+# Tooling
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.graphifyignore
+graphify-out/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

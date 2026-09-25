@@ -1,0 +1,7 @@
+# Normalize line endings and mark generated artifacts as binary for diffs.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.sqlite binary
+*.db binary
