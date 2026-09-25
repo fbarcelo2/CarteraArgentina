@@ -125,6 +125,12 @@ The machine-readable manifest is `uv run cartera spec --json`.
 A source that stops answering is reported as *unavailable*, never as data: the
 distinction matters, and it is why the port has explicit error types.
 
+The verified detail is in `docs/data-sources.md`: how far back each source actually
+goes, what it covers, and above all which corporate actions each series has or has
+not been adjusted for. Read it before building anything on a price series — a raw
+series turns YPF's 10:1 split into a -90% one-day crash, and every moving average
+and RSI computed from it will report that crash faithfully.
+
 ## Architecture
 
 ```
