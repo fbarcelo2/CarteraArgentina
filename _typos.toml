@@ -11,6 +11,14 @@ cedears = "cedears"
 # ba -> the Buenos Aires exchange suffix in a Yahoo symbol (GGAL.BA, YPFD.BA). The
 # check reads it as a misspelling of "by"/"be"; it is part of a real identifier.
 ba = "ba"
+# sur -> "TRANS. DE GAS DEL SUR", part of an issuer's name as the page prints it.
+sur = "sur"
+# ethe -> the ticker of the Grayscale Ethereum ETF as the page prints it, next to the
+# Ethereum CEDEAR. The check reads it as a misspelling of "the".
+ethe = "ethe"
+# clase -> the unit class of a fund (Clase A, Clase B). Spanish, and the word the page
+# uses; "Clase" would become "Clause", which names something else.
+clase = "clase"
 
 [files]
 extend-exclude = [".venv", "graphify-out", "*.lock"]
