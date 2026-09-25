@@ -37,7 +37,8 @@ Phase 0 — read-only core. No broker credentials are used or stored.
 | Append-only ledger with hash-chained audit log | working, tested |
 | Freshness / concentration gates | working |
 | CLI | working |
-| MCP server (stdio) | working |
+| MCP server (stdio) | working, verified with a real client |
+| Analyst persona (MCP resource + prompt) | working, invariant-tested |
 | AI narrative | interface only, no backend bundled |
 | Web UI | planned |
 | Broker adapters (order placement) | **not planned for this repository** |
@@ -67,19 +68,26 @@ uv run cartera portfolio import ~/mi-cartera.json
 uv run cartera report
 ```
 
-MCP clients (Claude Desktop, Hermes, any MCP host):
+MCP clients (Claude Code, Hermes, any MCP host). Pass `--directory`: a bare
+`uv run` would otherwise resolve against the client's working directory.
 
 ```json
 {
   "mcpServers": {
-    "cartera": { "command": "uv", "args": ["run", "cartera-mcp"] }
+    "cartera": {
+      "command": "uv",
+      "args": ["run", "--directory", "/absolute/path/to/CarteraArgentina", "cartera-mcp"]
+    }
   }
 }
 ```
 
 Tools exposed: `market_session`, `market_quotes`, `portfolio_import`,
-`portfolio_summary`, `portfolio_report`, `config_show`. The machine-readable
-manifest is `uv run cartera spec --json`.
+`portfolio_summary`, `portfolio_report`, `config_show`. The server also serves the
+analyst instructions as the resource `cartera://agent` and as the
+`portfolio_review` prompt, so a client inherits the invariants without a
+copy-pasted system prompt. See `docs/agent.md`. The machine-readable manifest is
+`uv run cartera spec --json`.
 
 ## Data sources
 
@@ -100,6 +108,7 @@ src/cartera/
 ├── ports/      Protocols the outside world must satisfy
 ├── adapters/   market data, FX, SQLite (append-only ledger)
 ├── app/        use cases composing domain + ports
+├── agent.py    analyst instructions, served over MCP (harness-agnostic)
 ├── cli.py      thin front-end (typer)
 └── mcp_server.py  thin front-end (MCP over stdio)
 ```

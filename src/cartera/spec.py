@@ -53,6 +53,19 @@ MCP_TOOLS: tuple[dict[str, Any], ...] = (
     {"name": "config_show", "description": "Effective non-secret configuration."},
 )
 
+MCP_RESOURCES: tuple[dict[str, Any], ...] = (
+    {"uri": "cartera://spec", "description": "This manifest: what the installation exposes."},
+    {"uri": "cartera://agent", "description": "Portable analyst instructions, for any MCP client."},
+)
+
+MCP_PROMPTS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "portfolio_review",
+        "description": "Instructions to review the latest snapshot, optionally focused on one area.",
+        "arguments": {"focus": "concentration"},
+    },
+)
+
 GUARANTEES: tuple[str, ...] = (
     "no order execution capability",
     "no broker credentials stored",
@@ -73,6 +86,8 @@ def manifest() -> dict[str, Any]:
         "executes_orders": False,
         "cli": list(CLI_COMMANDS),
         "mcp_tools": list(MCP_TOOLS),
+        "mcp_resources": list(MCP_RESOURCES),
+        "mcp_prompts": list(MCP_PROMPTS),
         "guarantees": list(GUARANTEES),
         "docs": {"architecture": "docs/ARCHITECTURE.md", "adr": "docs/adr/"},
     }

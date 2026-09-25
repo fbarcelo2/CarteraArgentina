@@ -34,6 +34,7 @@ EXPECTED_TOOLS = {
 ORDER_WORDS = ("order", "buy", "sell", "execute", "submit", "purchase")
 
 SPEC_URI = "cartera://spec"
+AGENT_URI = "cartera://agent"
 
 
 @pytest.fixture(scope="module")
@@ -83,3 +84,34 @@ def test_spec_resource_is_readable(server: Any) -> None:
     document = json.loads(payload)
     assert document["read_only"] is True
     assert document["executes_orders"] is False
+
+
+def test_resources_and_prompts_cannot_drift(server: Any) -> None:
+    """Tools are not the only surface: resources and prompts must also match."""
+    resources = {str(resource.uri) for resource in asyncio.run(server.list_resources())}
+    declared_resources = {item["uri"] for item in manifest()["mcp_resources"]}
+    assert resources == declared_resources
+
+    prompts = {prompt.name for prompt in asyncio.run(server.list_prompts())}
+    declared_prompts = {item["name"] for item in manifest()["mcp_prompts"]}
+    assert prompts == declared_prompts
+
+
+def test_agent_instructions_are_served(server: Any) -> None:
+    contents = asyncio.run(server.read_resource(AGENT_URI))
+    text = "\n".join(getattr(item, "content", str(item)) for item in contents)
+
+    # Executable documentation: the persona cannot silently lose its guardrails.
+    assert "NEVER compute" in text
+    assert "cannot trade" in text
+    assert "as_of" in text, "provenance must be required"
+    assert '"fresh": false' in text, "refusal handling must be stated"
+    assert "not advice" in text
+
+
+def test_review_prompt_carries_the_invariants(server: Any) -> None:
+    result = asyncio.run(server.get_prompt("portfolio_review", {"focus": "concentration"}))
+    joined = json.dumps(result, default=str)
+    assert "NEVER compute" in joined
+    assert "portfolio_report" in joined, "the review must start from computed figures"
+    assert "concentration" in joined, "the focus argument must reach the prompt"

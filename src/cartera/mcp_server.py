@@ -18,6 +18,7 @@ from pydantic import Field
 
 from cartera import __version__
 from cartera.adapters.sqlite_store import SqlitePortfolioStore
+from cartera.agent import ANALYST_INSTRUCTIONS, review_request
 from cartera.app.services import MarketService, PortfolioService, ReportService
 from cartera.config import Settings, load_settings
 from cartera.domain.errors import CarteraError
@@ -194,6 +195,24 @@ def build_server() -> MCPServer:
     def capability_manifest() -> str:
         """Machine-readable manifest of what this installation can do."""
         return json.dumps(manifest(), indent=2)
+
+    @server.resource("cartera://agent")
+    def analyst_instructions() -> str:
+        """The analyst invariants, so any client picks them up without copy-pasting."""
+        return ANALYST_INSTRUCTIONS
+
+    @server.prompt()
+    def portfolio_review(
+        focus: Annotated[
+            str | None,
+            Field(description='Optional area to concentrate on, e.g. "concentration".'),
+        ] = None,
+    ) -> list[dict[str, str]]:
+        """Instructions to review the latest snapshot, optionally focused on one area."""
+        return [
+            {"role": "user", "content": ANALYST_INSTRUCTIONS},
+            {"role": "user", "content": review_request(focus)},
+        ]
 
     return server
 
