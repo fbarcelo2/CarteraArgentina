@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="lede">
+  Everything below is computed by the core and merely formatted here. When a gate
+  fails, the page says why instead of showing a number nobody could have traded at.
+</p>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+{% if report %}
+  <div class="card">
+    <div class="grid">
+      <div>
+        <div class="label">Freshness gate</div>
+        <div class="kpi small">
+          {% if report.fresh %}<span class="badge ok">passing</span>{% else %}<span class="badge bad">failing</span>{% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="label">Generated at</div>
+        <div class="kpi small">{{ report.generated_at }}</div>
+      </div>
+      <div>
+        <div class="label">Snapshot</div>
+        <div class="kpi small">{{ summary.as_of if summary and summary.as_of else "none imported" }}</div>
+      </div>
+      <div>
+        <div class="label">Positions</div>
+        <div class="kpi small">{{ summary.lots if summary else 0 }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if not report.summary %}
+    <div class="notice bad">
+      No valuation was produced: the gate refused. That is the intended behaviour with
+      stale prices — the reasons are listed below.
+    </div>
+  {% elif report.summary.valuations %}
+    <h2>Valuation</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Currency</th>{% for key in report.summary.valuations.values() | first %}<th class="num">{{ key }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for currency, values in report.summary.valuations.items() %}
+          <tr>
+            <td>{{ currency }}</td>
+            {% for key in values %}<td class="num">{{ values[key] }}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if report.realized_pnl %}
+    <h2>Realized P&amp;L</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Currency</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+        {% for currency, amount in report.realized_pnl.items() %}
+          <tr><td>{{ currency }}</td><td class="num">{{ amount }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if report.issues %}
+    <h2>Findings</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Severity</th><th>Code</th><th>Detail</th></tr></thead>
+        <tbody>
+        {% for issue in report.issues %}
+          <tr>
+            <td><span class="badge {{ 'bad' if issue.severity == 'error' else 'warn' }}">{{ issue.severity }}</span></td>
+            <td>{{ issue.code }}</td>
+            <td>{{ issue.detail }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="notice warn">
+    No report could be built. Import a snapshot first:
+    <code>cartera portfolio import &lt;file&gt;</code>.
+  </div>
+{% endif %}
+
+<h2>Proposal scoreboard</h2>
+<div class="card">
+  {% if board and board.total_proposals %}
+    <div class="grid">
+      <div><div class="label">Proposals</div><div class="kpi">{{ board.total_proposals }}</div></div>
+      <div><div class="label">Decided</div><div class="kpi">{{ board.decided }}</div></div>
+      <div>
+        <div class="label">Hit rate</div>
+        <div class="kpi">{{ board.hit_rate_pct ~ "%" if board.hit_rate_pct is not none else "—" }}</div>
+      </div>
+      <div>
+        <div class="label">Mean return</div>
+        <div class="kpi">{{ board.mean_return_pct ~ "%" if board.mean_return_pct is not none else "—" }}</div>
+      </div>
+    </div>
+    {% if board.hit_rate_pct is none %}
+      <p class="muted">No horizon has closed yet, so there is no rate to report — not a rate of zero.</p>
+    {% endif %}
+  {% else %}
+    <p class="empty">Nothing recorded yet. The journal is what turns an opinion into a tracked one.</p>
+  {% endif %}
+</div>
+{% endblock %}

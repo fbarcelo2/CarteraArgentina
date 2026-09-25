@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Config — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Config</h1>
+<p class="lede">
+  Effective configuration, with secrets reduced to names. This page never prints a
+  secret value, and it cannot: the service it reads from does not return them.
+</p>
+
+<h2>Runtime</h2>
+<div class="card">
+  <table>
+    <tbody>
+      <tr><td>Data directory</td><td>{{ settings.data_dir }}</td></tr>
+      <tr><td>Database</td><td>{{ settings.db_path }}</td></tr>
+      <tr><td>Timezone</td><td>{{ settings.timezone }}</td></tr>
+      <tr><td>HTTP timeout</td><td>{{ settings.http_timeout_seconds }}s</td></tr>
+      <tr><td>Max quote age</td><td>{{ settings.max_quote_age_seconds }}s</td></tr>
+      <tr><td>Environment file used</td><td>{{ settings.env_file_used or "none" }}</td></tr>
+      <tr><td>Keyring backend</td><td>{{ keyring_backend or "unavailable" }}</td></tr>
+      <tr><td>Secrets present</td><td>{{ settings.loaded_secrets | join(", ") if settings.loaded_secrets else "none" }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Commission schedule</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Asset type</th><th class="num">Percent</th></tr></thead>
+    <tbody>
+    {% for asset_type, pct in settings.commission_pct.items() %}
+      <tr><td>{{ asset_type.value if asset_type.value is defined else asset_type }}</td><td class="num">{{ pct }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Audit log</h2>
+<div class="card">
+  <div class="grid">
+    <div>
+      <div class="label">Hash chain</div>
+      <div class="kpi small">
+        {% if audit_ok %}<span class="badge ok">verifies</span>{% else %}<span class="badge bad">broken</span>{% endif %}
+      </div>
+    </div>
+    <div><div class="label">Entries</div><div class="kpi small">{{ audit_entries }}</div></div>
+  </div>
+  {% if not audit_ok %}
+    <div class="notice bad">
+      The chain does not verify: a row was altered or removed outside the application.
+      Every figure derived from this database is now suspect.
+    </div>
+  {% endif %}
+</div>
+
+<h2>Not built yet</h2>
+{% for feature in pending if "Multi-user" in feature.title %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+{% endblock %}

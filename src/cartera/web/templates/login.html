@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — CarteraArgentina</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main style="max-width: 30rem">
+    <h1>Sign in</h1>
+    <p class="lede">
+      This UI runs on loopback with one shared token and no user accounts.
+      The token lives in <code>CARTERA_WEB_TOKEN</code>: the keyring on a workstation,
+      or the environment when it runs in a container. <code>cartera web</code> prints
+      the URL with the token on first run.
+    </p>
+    {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <label>Token
+        <input type="password" name="submitted" autocomplete="current-password" autofocus>
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Journal — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Journal</h1>
+<p class="lede">
+  A view is recorded at the price it was made at and with the horizon it claimed,
+  and it cannot be edited afterwards — the database rejects it. That is what makes
+  the scoreboard below mean something.
+</p>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+<h2>Scoreboard</h2>
+<div class="card">
+  <div class="grid">
+    <div><div class="label">Proposals</div><div class="kpi">{{ board.total_proposals }}</div></div>
+    <div><div class="label">Decided</div><div class="kpi">{{ board.decided }}</div></div>
+    <div><div class="label">Hit rate</div><div class="kpi">{{ board.hit_rate_pct ~ "%" if board.hit_rate_pct is not none else "—" }}</div></div>
+    <div><div class="label">Mean return</div><div class="kpi">{{ board.mean_return_pct ~ "%" if board.mean_return_pct is not none else "—" }}</div></div>
+  </div>
+  <p class="muted">
+    Pending and unscorable rows stay out of the rate: a rate that moves when nobody
+    made a call is not a measure of anything.
+  </p>
+  {% if board.by_verdict %}
+    <table>
+      <thead><tr><th>Verdict</th><th class="num">Count</th></tr></thead>
+      <tbody>
+      {% for verdict, count in board.by_verdict.items() %}
+        <tr><td>{{ verdict }}</td><td class="num">{{ count }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+  {% if board.best %}
+    <p class="muted">
+      Best: {{ board.best.ticker }} ({{ board.best.action }}) {{ board.best.return_pct }}% ·
+      Worst: {{ board.worst.ticker }} ({{ board.worst.action }}) {{ board.worst.return_pct }}%
+    </p>
+  {% endif %}
+</div>
+
+<h2>Record a view</h2>
+<div class="card">
+  <p class="muted">
+    The reference price is fetched by the server when you submit, so the entry price
+    cannot be chosen after the fact. Nothing here reaches a broker.
+  </p>
+  <form method="post" action="/journal/record">
+    <label>Ticker
+      <input type="text" name="ticker" placeholder="GGAL" size="10" required>
+    </label>
+    <label>Action
+      <select name="action">
+        <option value="buy">buy</option>
+        <option value="sell">sell</option>
+        <option value="hold">hold</option>
+      </select>
+    </label>
+    <label>Horizon in days
+      <input type="number" name="horizon_days" value="30" min="1" max="3650" style="min-width:5rem">
+    </label>
+    <label>Why — required
+      <input type="text" name="rationale" placeholder="trades below its five-year multiple" size="42" required>
+    </label>
+    <button type="submit">Record</button>
+  </form>
+</div>
+
+<h2>Proposals</h2>
+<div class="card">
+  {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Recorded</th><th>Ticker</th><th>Action</th><th class="num">Ref price</th>
+          <th class="num">Horizon</th><th>Verdict</th><th class="num">Return</th><th>Rationale</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td>{{ row.created_at[:16].replace("T", " ") }}</td>
+          <td>{{ row.ticker }}</td>
+          <td>{{ row.action }}</td>
+          <td class="num">{{ row.ref_price }} {{ row.currency }}</td>
+          <td class="num">{{ row.horizon_days }}d</td>
+          <td>
+            <span class="badge {{ 'ok' if row.verdict == 'hit' else 'bad' if row.verdict == 'miss' else 'muted' }}">{{ row.verdict }}</span>
+          </td>
+          <td class="num">{{ row.return_pct ~ "%" if row.return_pct else "—" }}</td>
+          <td class="muted">{{ row.rationale }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">Nothing recorded yet. Run <code>cartera proposal score</code> once a horizon closes.</p>
+  {% endif %}
+</div>
+
+<h2>Not built yet</h2>
+{% for feature in pending if "Narrative" in feature.title or "Scheduled" in feature.title %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+{% endblock %}

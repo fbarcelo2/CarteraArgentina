@@ -543,6 +543,47 @@ def proposal_scoreboard(
     _emit(payload, as_json, "scoreboard")
 
 
+@app.command("web")
+def web(
+    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8787,
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Loopback address to bind. Anything else is refused."),
+    ] = "127.0.0.1",
+    env_file: ENV_OPTION = None,
+) -> None:
+    """Serve the local read-only UI. Loopback only, one shared token."""
+    # Imported here, not at module scope: the web extra is optional, and a missing
+    # fastapi must not break the CLI for someone who only wants the MCP server.
+    from cartera.web.app import assert_loopback, build_app, resolve_web_token
+
+    settings = _settings(env_file)
+    try:
+        assert_loopback(host)
+    except CarteraError as exc:
+        _guard("web", exc)
+        return
+
+    token, origin = resolve_web_token()
+    if token is None:
+        console.print("[red]no UI token available:[/red] the keyring is unavailable and CARTERA_WEB_TOKEN is unset.")
+        console.print("Set CARTERA_WEB_TOKEN in the environment — a container has no keyring — then retry.")
+        raise typer.Exit(code=2)
+
+    try:
+        import uvicorn
+    except ImportError as exc:
+        console.print("[red]the web extra is not installed:[/red] run: uv sync --extra web")
+        raise typer.Exit(code=2) from exc
+
+    console.print(f"[green]serving[/green] http://{host}:{port}/  (token from the {origin})")
+    if origin == "generated":
+        # Printed once, to this terminal, so a first run is usable. Set the token
+        # yourself to avoid it ever reaching a screen or a log.
+        console.print(f"[yellow]token:[/yellow] {token}")
+    uvicorn.run(build_app(settings, token), host=host, port=port, log_level="warning")
+
+
 def main() -> None:
     app()
 

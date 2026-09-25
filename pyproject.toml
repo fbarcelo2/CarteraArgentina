@@ -31,11 +31,10 @@ dependencies = [
 [project.optional-dependencies]
 mcp = ["mcp>=1.2"]
 keyring = ["keyring>=25.2"]
-# A `web` extra (fastapi, uvicorn, jinja2, python-multipart) belongs here once the
-# UI code exists. It was declared ahead of the code and removed: dependency
-# hygiene tooling flagged it correctly, and a declared-but-unused dependency is
-# an unverifiable surface that no test can exercise. Re-add it in the commit that
-# adds the first web module.
+# The local UI. Server-rendered on purpose: no build step, no third-party assets,
+# so opening it never contacts anything but this machine — which matters for a
+# tool whose every page reveals what you hold.
+web = ["fastapi>=0.115", "uvicorn[standard]>=0.32", "jinja2>=3.1", "python-multipart>=0.0.9"]
 
 [project.scripts]
 cartera = "cartera.cli:main"
@@ -71,6 +70,14 @@ known_first_party = ["cartera"]
 [tool.deptry.package_module_name_map]
 # deptry matches import names against distribution names; these two differ.
 python-dotenv = "dotenv"
+
+[tool.deptry.per_rule_ignores]
+# Runtime-only requirements of the web framework, which no import can reveal:
+# FastAPI's Jinja2Templates renders the templates, and its Form() parses request
+# bodies, so both must be installed even though the code never imports either by
+# name. Scoped to these two names so DEP002 keeps working for everything else —
+# a declared dependency nobody uses is an unverifiable surface.
+DEP002 = ["jinja2", "python-multipart"]
 
 # pytest configuration lives in pytest.ini (project standard), deliberately not
 # duplicated here: two config sources for the same tool silently diverge.

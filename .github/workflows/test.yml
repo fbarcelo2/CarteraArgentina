@@ -25,7 +25,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies (locked)
-        run: uv sync --frozen
+        run: uv sync --frozen --extra mcp --extra web
 
       - name: Lint
         run: uv run ruff check . --output-format=github
@@ -51,7 +51,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies (locked)
-        run: uv sync --frozen
+        run: uv sync --frozen --extra mcp --extra web
 
       - name: Install the external validators
         run: scripts/install-validators.sh

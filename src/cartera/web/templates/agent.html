@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Analyst — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Analyst instructions</h1>
+<p class="lede">
+  The same text the MCP server serves as <code>cartera://agent</code>. It is written
+  once, in the package, and served by every front-end — so the invariants cannot
+  drift between what the CLI prints and what a model reads.
+</p>
+
+<div class="card">
+  <p class="muted">
+    Nothing above the API key is computed by a model: the figures come from tested
+    code, and the model narrates them. That boundary is the reason this tool can be
+    audited at all.
+  </p>
+</div>
+
+<h2>Invariants</h2>
+<pre>{{ instructions }}</pre>
+
+<h2>Not built yet</h2>
+{% for feature in pending if "Narrative" in feature.title %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+{% endblock %}

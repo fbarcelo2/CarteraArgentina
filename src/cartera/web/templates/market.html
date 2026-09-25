@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Market — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Market</h1>
+<p class="lede">
+  Delayed public quotes, with their provenance. No credentials are involved and no
+  figure here is computed by this page: it is printed as it arrived, timestamped.
+</p>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+
+{% if session %}
+  <div class="card">
+    <div class="grid">
+      <div>
+        <div class="label">Session</div>
+        <div class="kpi small">
+          {% if session.is_working_day %}<span class="badge ok">trading day</span>{% else %}<span class="badge muted">closed today</span>{% endif %}
+        </div>
+      </div>
+      <div><div class="label">Opens</div><div class="kpi small">{{ session.opens_at or "—" }}</div></div>
+      <div><div class="label">Closes</div><div class="kpi small">{{ session.closes_at or "—" }}</div></div>
+      <div><div class="label">Timezone</div><div class="kpi small">{{ session.timezone }}</div></div>
+    </div>
+  </div>
+{% endif %}
+
+<h2>Quotes</h2>
+<div class="card">
+  <form method="get" action="/market">
+    <label>Tickers, comma separated
+      <input type="text" name="tickers" value="{{ tickers }}" size="34">
+    </label>
+    <button type="submit">Fetch</button>
+  </form>
+</div>
+
+{% if quotes %}
+  <div class="card">
+    <table>
+      <thead><tr><th>Ticker</th><th class="num">Price</th><th>Currency</th><th>As of</th><th>Source</th></tr></thead>
+      <tbody>
+      {% for quote in quotes.quotes %}
+        <tr>
+          <td>{{ quote.ticker }}</td>
+          <td class="num">{{ quote.price }}</td>
+          <td>{{ quote.currency }}</td>
+          <td>{{ quote.as_of }}</td>
+          <td>{{ quote.source }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted">Sources: {{ quotes.sources | join(", ") }}</p>
+  </div>
+{% elif not error %}
+  <div class="notice warn">No quotes came back for those tickers.</div>
+{% endif %}
+
+<h2>Not built yet</h2>
+{% for feature in pending if "Backtest" in feature.title or "charts" in feature.title %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+{% endblock %}

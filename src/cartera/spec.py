@@ -26,6 +26,7 @@ CLI_COMMANDS: tuple[str, ...] = (
     "proposal scoreboard",
     "report",
     "spec",
+    "web",
 )
 
 MCP_TOOLS: tuple[dict[str, Any], ...] = (
@@ -87,6 +88,18 @@ MCP_PROMPTS: tuple[dict[str, Any], ...] = (
     },
 )
 
+#: Pages the local UI serves. Declared here rather than discovered from the
+#: framework so the manifest, the nav and the routes cannot drift apart.
+WEB_PAGES: tuple[str, ...] = (
+    "/",
+    "/portfolio",
+    "/market",
+    "/journal",
+    "/config",
+    "/agent",
+    "/roadmap",
+)
+
 GUARANTEES: tuple[str, ...] = (
     "no order execution capability",
     "no broker credentials stored",
@@ -109,6 +122,7 @@ def manifest() -> dict[str, Any]:
         "mcp_tools": list(MCP_TOOLS),
         "mcp_resources": list(MCP_RESOURCES),
         "mcp_prompts": list(MCP_PROMPTS),
+        "web_pages": list(WEB_PAGES),
         "guarantees": list(GUARANTEES),
         "docs": {"architecture": "docs/ARCHITECTURE.md", "adr": "docs/adr/"},
     }

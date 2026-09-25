@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CarteraArgentina{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="brand">CarteraArgentina <span>v{{ version }}</span></div>
+    <nav>
+      {% for href, label in nav %}
+        {# The literal leading slash is not decoration: it is what makes the href a #}
+        {# relative path, so no value here can ever be a javascript: URI. The paths #}
+        {# come from the NAV tuple in web/app.py; nothing from a request reaches it. #}
+        <a href="/{{ href.lstrip('/') }}"{% if request.url.path == href %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <form method="post" action="/logout" style="margin-left:auto">
+      <button class="secondary" type="submit">Log out</button>
+    </form>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    Local, read-only, single user. This tool cannot place, modify or cancel an order,
+    and nothing it produces is advice.
+  </footer>
+</body>
+</html>

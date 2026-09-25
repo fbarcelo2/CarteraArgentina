@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Portfolio — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Portfolio</h1>
+<p class="lede">
+  The latest imported snapshot. Importing is append-only: a new snapshot adds a
+  row, it never rewrites the previous one, so history stays auditable.
+</p>
+
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+{% if imported %}<div class="notice ok">Snapshot imported.</div>{% endif %}
+
+{% if summary %}
+  <div class="card">
+    <div class="grid">
+      <div><div class="label">As of</div><div class="kpi small">{{ summary.as_of or "unlabelled" }}</div></div>
+      <div><div class="label">Label</div><div class="kpi small">{{ summary.label or "—" }}</div></div>
+      <div><div class="label">Source</div><div class="kpi small">{{ summary.snapshot_source or "—" }}</div></div>
+      <div><div class="label">Lots</div><div class="kpi small">{{ summary.lots }}</div></div>
+    </div>
+  </div>
+
+  <h2>Holdings</h2>
+  <div class="card">
+    {% if summary.positions %}
+      <table>
+        <thead><tr><th>Ticker</th><th>Type</th><th class="num">Quantity</th><th class="num">Unit price</th><th>Currency</th></tr></thead>
+        <tbody>
+        {% for position in summary.positions %}
+          <tr>
+            <td>{{ position.ticker }}</td>
+            <td>{{ position.asset_type }}</td>
+            <td class="num">{{ position.quantity }}</td>
+            <td class="num">{{ position.unit_price }}</td>
+            <td>{{ position.currency }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No positions in this snapshot.</p>
+    {% endif %}
+  </div>
+
+  {% if summary.cash %}
+    <h2>Cash</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Currency</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+        {% for currency, amount in summary.cash.items() %}
+          <tr><td>{{ currency }}</td><td class="num">{{ amount }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="notice warn">No snapshot imported yet.</div>
+{% endif %}
+
+<h2>Import a snapshot</h2>
+<div class="card">
+  <p class="muted">
+    The file is read from this machine. There is no upload: the path is the input,
+    which keeps the boundary explicit.
+  </p>
+  <form method="post" action="/portfolio/import">
+    <label>Path to the JSON snapshot
+      <input type="text" name="path" placeholder="/home/you/cartera.json" size="44" required>
+    </label>
+    <label>Label (optional)
+      <input type="text" name="label" placeholder="september">
+    </label>
+    <button type="submit">Import</button>
+  </form>
+</div>
+
+<h2>Not built yet</h2>
+{% for feature in pending if "Broker" in feature.title %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+{% endblock %}

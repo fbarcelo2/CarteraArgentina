@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Not built yet — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Not built yet</h1>
+<p class="lede">
+  Every function this project intends to have and does not have yet, with what it
+  is waiting on. Written down so a missing feature reads as missing instead of as
+  broken, and so nothing here is a button that pretends to work.
+</p>
+
+{% for feature in pending %}
+  <div class="card pending">
+    <h3>{{ feature.title }}</h3>
+    <p class="what">{{ feature.what }}</p>
+    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
+  </div>
+{% endfor %}
+
+<h2>What is built</h2>
+<div class="card">
+  <table>
+    <tbody>
+      <tr><td>Public market data</td><td>Delayed quotes and the trading session, with provenance per quote.</td></tr>
+      <tr><td>Lot-based accounting</td><td>Append-only ledger, FIFO realized P&amp;L, liquidation costs.</td></tr>
+      <tr><td>Deterministic metrics</td><td>Valuation, concentration, freshness gate. Tested arithmetic, no model involved.</td></tr>
+      <tr><td>Proposal journal</td><td>Recorded before the fact, scored after it, uneditable, with a hit-rate scoreboard.</td></tr>
+      <tr><td>Three front-ends</td><td><code>cartera</code> (CLI), MCP over stdio, and this UI.</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
