@@ -27,6 +27,7 @@ reports/
 htmlcov/
 .graphifyignore
 graphify-out/
+requirements-audit.txt
 
 # Editors / OS
 .idea/
