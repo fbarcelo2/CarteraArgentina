@@ -54,6 +54,10 @@ jobs:
         run: uv sync --frozen --extra mcp --extra web
 
       - name: Install the external validators
+        # The token lifts the GitHub API from sixty requests an hour to five
+        # thousand, so a busy runner cannot turn a rate limit into a red build.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: scripts/install-validators.sh
 
       - name: Validation stack (static and dynamic)

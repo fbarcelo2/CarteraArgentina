@@ -15,14 +15,41 @@ mkdir -p "$DEST"
 ARCH="$(uname -m)"
 [[ "$ARCH" == "aarch64" ]] && ARCH_ALT="arm64" || ARCH_ALT="x86_64"
 
+# GitHub's API answers sixty requests an hour without credentials, which is easy
+# to exhaust when this runs from CI and from a workstation at once. Use a token
+# when one is around: GITHUB_TOKEN in Actions, GH_TOKEN locally.
+api_get() {
+  local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+  if [[ -n "$token" ]]; then
+    curl -sSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.github+json" "$1"
+  else
+    curl -sSL -H "Accept: application/vnd.github+json" "$1"
+  fi
+}
+
+release_json() {
+  local payload
+  payload="$(api_get "https://api.github.com/repos/$1/releases/latest")"
+  # An error payload carries no "assets" key. Crashing on the missing key is what
+  # turned a rate limit into a confusing CI failure, so say what happened instead.
+  if ! grep -q '"assets"' <<<"$payload"; then
+    echo "FAIL  no release from the GitHub API for $1: $(grep -o '"message": *"[^"]*"' <<<"$payload" | head -1)" >&2
+    return 1
+  fi
+  printf '%s' "$payload"
+}
+
 latest_tag() {
-  curl -sSL "https://api.github.com/repos/$1/releases/latest" | grep -oP '"tag_name":\s*"\K[^"]+'
+  release_json "$1" | grep -oP '"tag_name":\s*"\K[^"]+'
 }
 
 asset_url() {
   # repo, asset regex
-  curl -sSL "https://api.github.com/repos/$1/releases/latest" \
-    | python3 -c "
+  local payload
+  # Return before Python runs: otherwise a rate limit prints a traceback on top of
+  # the message that actually explains what happened.
+  payload="$(release_json "$1")" || return 1
+  python3 -c "
 import json, re, sys
 pattern = sys.argv[1]
 release = json.load(sys.stdin)
@@ -32,7 +59,7 @@ for asset in release['assets']:
         break
 else:
     sys.exit(f'no asset matching {pattern!r} in {release[\"tag_name\"]}')
-" "$2"
+" "$2" <<<"$payload"
 }
 
 install_binary() {
