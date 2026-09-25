@@ -24,6 +24,7 @@ from pathlib import Path
 from cartera.domain.errors import DuplicateTransactionError
 from cartera.domain.models import AssetType, Lot, PortfolioSnapshot, Settlement, Transaction, TxKind
 from cartera.domain.money import Currency, as_decimal
+from cartera.domain.proposals import Proposal, ProposalOutcome
 
 SCHEMA = """
 PRAGMA journal_mode = WAL;
@@ -80,6 +81,52 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_transactions_occurred_at ON transactions(occurred_at);
 CREATE INDEX IF NOT EXISTS idx_lots_ticker ON lots(ticker);
 CREATE INDEX IF NOT EXISTS idx_audit_entry ON audit_log(entry_id);
+
+CREATE TABLE IF NOT EXISTS proposals (
+    proposal_id  TEXT PRIMARY KEY,
+    created_at   TEXT NOT NULL,
+    ticker       TEXT NOT NULL,
+    action       TEXT NOT NULL,
+    horizon_days INTEGER NOT NULL,
+    payload      TEXT NOT NULL,
+    recorded_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS proposal_outcomes (
+    outcome_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    proposal_id  TEXT NOT NULL REFERENCES proposals(proposal_id),
+    evaluated_at TEXT NOT NULL,
+    payload      TEXT NOT NULL,
+    recorded_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_proposals_ticker ON proposals(ticker);
+CREATE INDEX IF NOT EXISTS idx_proposals_created ON proposals(created_at);
+CREATE INDEX IF NOT EXISTS idx_outcomes_proposal ON proposal_outcomes(proposal_id);
+
+CREATE TRIGGER IF NOT EXISTS proposals_no_update
+BEFORE UPDATE ON proposals
+BEGIN
+    SELECT RAISE(ABORT, 'proposals is append-only: record a new proposal instead of editing one');
+END;
+
+CREATE TRIGGER IF NOT EXISTS proposals_no_delete
+BEFORE DELETE ON proposals
+BEGIN
+    SELECT RAISE(ABORT, 'proposals is append-only: the journal cannot be rewritten');
+END;
+
+CREATE TRIGGER IF NOT EXISTS proposal_outcomes_no_update
+BEFORE UPDATE ON proposal_outcomes
+BEGIN
+    SELECT RAISE(ABORT, 'proposal_outcomes is append-only: rescore instead of editing');
+END;
+
+CREATE TRIGGER IF NOT EXISTS proposal_outcomes_no_delete
+BEFORE DELETE ON proposal_outcomes
+BEGIN
+    SELECT RAISE(ABORT, 'proposal_outcomes is append-only');
+END;
 
 CREATE TRIGGER IF NOT EXISTS transactions_no_update
 BEFORE UPDATE ON transactions
@@ -303,6 +350,37 @@ class SqlitePortfolioStore:
                 return False
             prev_hash = str(row["hash"])
         return True
+
+    # -- proposal journal ----------------------------------------------------
+
+    def add_proposal(self, proposal: Proposal) -> None:
+        self._connection.execute(
+            "INSERT INTO proposals (proposal_id, created_at, ticker, action, horizon_days, payload, recorded_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                proposal.proposal_id,
+                proposal.created_at.isoformat(),
+                proposal.ticker,
+                proposal.action.value,
+                proposal.horizon_days,
+                proposal.model_dump_json(),
+                _now(),
+            ),
+        )
+
+    def proposals(self) -> list[Proposal]:
+        rows = self._connection.execute("SELECT payload FROM proposals ORDER BY created_at").fetchall()
+        return [Proposal.model_validate_json(row["payload"]) for row in rows]
+
+    def add_outcome(self, outcome: ProposalOutcome) -> None:
+        self._connection.execute(
+            "INSERT INTO proposal_outcomes (proposal_id, evaluated_at, payload, recorded_at) VALUES (?, ?, ?, ?)",
+            (outcome.proposal_id, outcome.evaluated_at.isoformat(), outcome.model_dump_json(), _now()),
+        )
+
+    def outcomes(self) -> list[ProposalOutcome]:
+        rows = self._connection.execute("SELECT payload FROM proposal_outcomes ORDER BY outcome_id").fetchall()
+        return [ProposalOutcome.model_validate_json(row["payload"]) for row in rows]
 
     # -- helpers -------------------------------------------------------------
 

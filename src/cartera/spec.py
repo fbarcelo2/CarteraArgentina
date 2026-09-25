@@ -20,6 +20,10 @@ CLI_COMMANDS: tuple[str, ...] = (
     "market session",
     "portfolio import",
     "portfolio summary",
+    "proposal list",
+    "proposal record",
+    "proposal score",
+    "proposal scoreboard",
     "report",
     "spec",
 )
@@ -51,6 +55,23 @@ MCP_TOOLS: tuple[dict[str, Any], ...] = (
         ),
     },
     {"name": "config_show", "description": "Effective non-secret configuration."},
+    {
+        "name": "proposal_record",
+        "description": (
+            "Record a view at today's price, with the horizon it claims, so it "
+            "can be scored later. The price is fetched by the server."
+        ),
+        "arguments": {
+            "ticker": "GGAL",
+            "action": "buy",
+            "rationale": "trades below its five-year multiple",
+            "horizon_days": 30,
+        },
+    },
+    {
+        "name": "proposal_scoreboard",
+        "description": "Hit rate of the proposal journal, with pending and unscorable counts kept separate.",
+    },
 )
 
 MCP_RESOURCES: tuple[dict[str, Any], ...] = (

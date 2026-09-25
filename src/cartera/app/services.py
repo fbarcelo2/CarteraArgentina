@@ -10,18 +10,41 @@ import json
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from cartera.adapters.byma_open import UNIVERSES, BymaOpenDataSource, default_universes
 from cartera.config import Settings
-from cartera.domain.errors import CarteraError, DuplicateTransactionError, SourceUnavailableError
+from cartera.domain.errors import (
+    CarteraError,
+    DomainError,
+    DuplicateTransactionError,
+    SourceUnavailableError,
+    UnknownTickerError,
+)
 from cartera.domain.metrics import liquidation_costs, realized_pnl, valuate
 from cartera.domain.models import PortfolioSnapshot, Quote, Settlement
 from cartera.domain.money import Currency
-from cartera.domain.rules import ValidationIssue, check_concentration, check_freshness, merge_reports
+from cartera.domain.proposals import (
+    Proposal,
+    ProposalAction,
+    ProposalOutcome,
+    Scoreboard,
+    Verdict,
+    build_scoreboard,
+    evaluate,
+    latest_outcomes,
+)
+from cartera.domain.rules import (
+    ValidationIssue,
+    assert_fresh,
+    check_concentration,
+    check_freshness,
+    merge_reports,
+)
 from cartera.ports.market_data import MarketDataSource, MarketSession, Universe
-from cartera.ports.store import PortfolioStore
+from cartera.ports.store import PortfolioStore, ProposalJournal
 
 #: When a ticker is quoted for several settlement windows, prefer the most
 #: immediate one, then the longer ones. Deterministic, and documented.
@@ -305,6 +328,218 @@ class ReportService:
         return {"code": code, "detail": detail, "severity": severity}
 
 
+#: A verdict that means a call was made and the market answered it.
+DECIDED_VERDICTS: tuple[Verdict, ...] = (Verdict.HIT, Verdict.MISS, Verdict.FLAT)
+
+
+class ProposalRecordResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    proposal: dict[str, str]
+    audit_hash: str
+
+
+class ProposalScoreResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    scored: int = 0
+    already_scored: int = 0
+    pending: int = 0
+    unscorable: int = 0
+    unpriced: int = 0
+    outcomes: list[dict[str, str]] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
+class ProposalService:
+    """Record views before the fact, score them after it.
+
+    Two rules make the scoreboard worth reading. The reference price comes from a
+    fresh quote fetched *inside* this service, never from the caller, so an entry
+    price cannot be picked after seeing where the market went. And nothing is
+    scored before its horizon elapses, so a proposal cannot be judged on a shorter
+    window than the one it claimed.
+    """
+
+    def __init__(self, store: ProposalJournal, market: MarketService) -> None:
+        self.store = store
+        self.market = market
+
+    async def record(
+        self,
+        *,
+        ticker: str,
+        action: ProposalAction,
+        rationale: str,
+        horizon_days: int,
+        target_price: Decimal | None = None,
+        source: str = "human",
+    ) -> ProposalRecordResult:
+        """Record a view at the price it is being made at."""
+        normalized = ticker.strip().upper()
+        if not normalized:
+            raise DomainError("a proposal needs a ticker")
+        if horizon_days < 1:
+            raise DomainError(f"horizon must be at least 1 day, got {horizon_days}")
+        if not rationale.strip():
+            raise DomainError("a proposal needs a rationale: an unexplained view cannot be reviewed later")
+
+        now = datetime.now(self.market.settings.timezone)
+        result = await self.market.quotes([normalized])
+        quote = {item.ticker: item for item in result.quotes}.get(normalized)
+        if quote is None:
+            source_name = result.sources[0] if result.sources else "market source"
+            raise UnknownTickerError([normalized], source_name)
+        assert_fresh([quote], now, self.market.settings.max_quote_age_seconds)
+
+        proposal = Proposal(
+            proposal_id=f"{normalized}-{action.value}-{now:%Y%m%dT%H%M%S}-{uuid4().hex[:6]}",
+            created_at=now,
+            ticker=normalized,
+            action=action,
+            rationale=rationale.strip(),
+            ref_price=quote.price,
+            currency=quote.currency,
+            horizon_days=horizon_days,
+            target_price=target_price,
+            source=source,
+        )
+        self.store.add_proposal(proposal)
+        audit_hash = self.store.record_audit("proposal.record", _proposal_audit_payload(proposal))
+        return ProposalRecordResult(proposal=_proposal_payload(proposal), audit_hash=audit_hash)
+
+    async def score(self, *, rescore: bool = False) -> ProposalScoreResult:
+        """Score every proposal whose horizon has elapsed.
+
+        A proposal is scored once. Repeating the run does not append duplicates,
+        because that would let a thin journal look like a rich one; ``rescore``
+        exists for scoring the same proposal again on purpose, at a later point.
+        """
+        proposals = self.store.proposals()
+        if not proposals:
+            return ProposalScoreResult()
+
+        now = datetime.now(self.market.settings.timezone)
+        latest = latest_outcomes(self.store.outcomes())
+        already_scored = 0
+        pending = 0
+        due: list[Proposal] = []
+
+        for proposal in proposals:
+            outcome = latest.get(proposal.proposal_id)
+            if outcome is not None and outcome.verdict in DECIDED_VERDICTS and not rescore:
+                already_scored += 1
+                continue
+            if (now - proposal.created_at).days < proposal.horizon_days:
+                pending += 1
+                continue
+            due.append(proposal)
+
+        if not due:
+            return ProposalScoreResult(already_scored=already_scored, pending=pending)
+
+        tickers = sorted({proposal.ticker for proposal in due})
+        quotes_result = await self.market.quotes(tickers)
+        by_ticker = {quote.ticker: quote for quote in quotes_result.quotes}
+        present = [by_ticker[ticker] for ticker in tickers if ticker in by_ticker]
+        assert_fresh(present, now, self.market.settings.max_quote_age_seconds)
+
+        scored: list[dict[str, str]] = []
+        unscorable = 0
+        unpriced = 0
+        for proposal in due:
+            quote = by_ticker.get(proposal.ticker)
+            if quote is None:
+                unpriced += 1
+                continue
+            outcome = evaluate(proposal, quote.price, now)
+            self.store.add_outcome(outcome)
+            if outcome.verdict is Verdict.UNSCORABLE:
+                unscorable += 1
+            scored.append(_outcome_payload(outcome))
+
+        self.store.record_audit(
+            "proposal.score",
+            {
+                "scored": str(len(scored)),
+                "already_scored": str(already_scored),
+                "pending": str(pending),
+                "unpriced": str(unpriced),
+                "rescore": str(rescore),
+            },
+        )
+        return ProposalScoreResult(
+            scored=len(scored),
+            already_scored=already_scored,
+            pending=pending,
+            unscorable=unscorable,
+            unpriced=unpriced,
+            outcomes=scored,
+            sources=quotes_result.sources,
+        )
+
+    def journal(self) -> list[dict[str, str]]:
+        """Every proposal with its latest outcome, for the front-ends."""
+        latest = latest_outcomes(self.store.outcomes())
+        rows: list[dict[str, str]] = []
+        for proposal in self.store.proposals():
+            outcome = latest.get(proposal.proposal_id)
+            rows.append(
+                {
+                    **_proposal_payload(proposal),
+                    "verdict": outcome.verdict.value if outcome is not None else Verdict.PENDING.value,
+                    "return_pct": ("" if outcome is None or outcome.return_pct is None else str(outcome.return_pct)),
+                    "evaluated_at": outcome.evaluated_at.isoformat() if outcome is not None else "",
+                },
+            )
+        return rows
+
+    def scoreboard(self) -> Scoreboard:
+        """Aggregate the journal. Reads what was already scored; no network."""
+        return build_scoreboard(self.store.proposals(), self.store.outcomes())
+
+
+def _proposal_payload(proposal: Proposal) -> dict[str, str]:
+    return {
+        "proposal_id": proposal.proposal_id,
+        "created_at": proposal.created_at.isoformat(),
+        "horizon_ends_at": proposal.horizon_ends_at.isoformat(),
+        "ticker": proposal.ticker,
+        "action": proposal.action.value,
+        "rationale": proposal.rationale,
+        "ref_price": str(proposal.ref_price),
+        "currency": proposal.currency.value,
+        "horizon_days": str(proposal.horizon_days),
+        "target_price": "" if proposal.target_price is None else str(proposal.target_price),
+        "source": proposal.source,
+    }
+
+
+def _outcome_payload(outcome: ProposalOutcome) -> dict[str, str]:
+    return {
+        "proposal_id": outcome.proposal_id,
+        "evaluated_at": outcome.evaluated_at.isoformat(),
+        "price_then": str(outcome.price_then),
+        "price_now": str(outcome.price_now),
+        "days_elapsed": str(outcome.days_elapsed),
+        "return_pct": "" if outcome.return_pct is None else str(outcome.return_pct),
+        "verdict": outcome.verdict.value,
+        "detail": outcome.detail or "",
+    }
+
+
+def _proposal_audit_payload(proposal: Proposal) -> dict[str, object]:
+    return {
+        "proposal_id": proposal.proposal_id,
+        "ticker": proposal.ticker,
+        "action": proposal.action.value,
+        "ref_price": str(proposal.ref_price),
+        "currency": proposal.currency.value,
+        "horizon_days": proposal.horizon_days,
+        "source": proposal.source,
+    }
+
+
 def decimal_or_none(value: object) -> Decimal | None:
     """Small helper for front-ends that accept numbers as strings."""
     if value in (None, ""):
@@ -317,11 +552,15 @@ def currency_key(currency: Currency) -> str:
 
 
 __all__ = [
+    "DECIDED_VERDICTS",
     "SETTLEMENT_PREFERENCE",
     "MarketQuotesResult",
     "MarketService",
     "PortfolioImportResult",
     "PortfolioService",
+    "ProposalRecordResult",
+    "ProposalScoreResult",
+    "ProposalService",
     "ReportResult",
     "ReportService",
     "ValidationIssue",

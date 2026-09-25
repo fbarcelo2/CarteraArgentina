@@ -12,6 +12,10 @@ select = [
 ]
 ignore = [
   "PLR0913",  # Many arguments: acceptable on analytics signatures
+  "PLR0917",  # Many *positional* arguments: the same, split out of PLR0913 by
+              # ruff. A CLI command's signature is its interface, one parameter
+              # per flag, so splitting it into a wrapper struct would only move
+              # the width somewhere less readable.
   "S105",     # Hardcoded password: config defaults are intentionally empty
   "S104",     # Binding to all interfaces: not used, but harmless in config parsing
   "PLC0415",  # Import inside a function: intentional for optional extras (mcp, keyring)

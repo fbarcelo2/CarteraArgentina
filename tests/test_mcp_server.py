@@ -27,6 +27,8 @@ EXPECTED_TOOLS = {
     "portfolio_summary",
     "portfolio_report",
     "config_show",
+    "proposal_record",
+    "proposal_scoreboard",
 }
 
 # Words that would betray an order-placing capability. The project's central

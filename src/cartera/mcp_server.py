@@ -1,6 +1,6 @@
 """MCP front-end (stdio). Thin: same use cases as the CLI, different transport.
 
-Tool count is deliberately small and orthogonal — six tools a model can hold in
+Tool count is deliberately small and orthogonal — eight tools a model can hold in
 head, rather than thirty it will misuse. Read ``cartera.spec`` for the manifest.
 
 The SDK used here is ``mcp`` 2.x, where the high-level class is
@@ -11,6 +11,7 @@ import raises with a pointer to the migration guide).
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
@@ -19,9 +20,10 @@ from pydantic import Field
 from cartera import __version__
 from cartera.adapters.sqlite_store import SqlitePortfolioStore
 from cartera.agent import ANALYST_INSTRUCTIONS, review_request
-from cartera.app.services import MarketService, PortfolioService, ReportService
+from cartera.app.services import MarketService, PortfolioService, ProposalService, ReportService
 from cartera.config import Settings, load_settings
 from cartera.domain.errors import CarteraError
+from cartera.domain.proposals import ProposalAction
 from cartera.security.secrets import keyring_backend
 from cartera.spec import manifest
 
@@ -188,6 +190,75 @@ def build_server() -> MCPServer:
             "commission_pct": {key.value: str(value) for key, value in settings.commission_pct.items()},
             "keyring_backend": keyring_backend(),
             "secrets_present": list(settings.loaded_secrets),
+        }
+
+    @server.tool()
+    async def proposal_record(
+        ticker: Annotated[str, Field(description='Asset the view is about, e.g. "GGAL".')],
+        action: Annotated[str, Field(description='One of "buy", "sell" or "hold".')],
+        rationale: Annotated[
+            str,
+            Field(description="Why the view is held. Required: an unexplained view cannot be reviewed later."),
+        ],
+        horizon_days: Annotated[int, Field(description="Days after which the view may be scored.")],
+        target_price: Annotated[
+            float | None,
+            Field(description="Optional target price, recorded for the reader, never used to score."),
+        ] = None,
+    ) -> dict[str, Any]:
+        """Record a view at today's price so the journal can score it later.
+
+        The reference price is fetched by the server, so a caller cannot choose the
+        entry price. Nothing here reaches a broker: this writes a note in your own
+        append-only journal, and it is not advice.
+        """
+        try:
+            parsed_action = ProposalAction(action.strip().lower())
+        except ValueError:
+            return _error(CarteraError(f"unknown action {action!r}: expected buy, sell or hold"))
+        settings = _settings()
+        store = SqlitePortfolioStore(settings.db_path)
+        market = MarketService(settings)
+        try:
+            result = await ProposalService(store, market).record(
+                ticker=ticker,
+                action=parsed_action,
+                rationale=rationale,
+                horizon_days=horizon_days,
+                target_price=None if target_price is None else Decimal(str(target_price)),
+                source="mcp",
+            )
+        except CarteraError as exc:
+            return _error(exc)
+        finally:
+            await market.aclose()
+            store.close()
+        return {"ok": True, "proposal": result.proposal, "audit_hash": result.audit_hash}
+
+    @server.tool()
+    async def proposal_scoreboard(
+        score_first: Annotated[
+            bool,
+            Field(description="Score due proposals against current quotes before aggregating."),
+        ] = True,
+    ) -> dict[str, Any]:
+        """The hit rate of everything the journal has claimed, and what is pending."""
+        settings = _settings()
+        store = SqlitePortfolioStore(settings.db_path)
+        market = MarketService(settings)
+        service = ProposalService(store, market)
+        try:
+            run = await service.score() if score_first else None
+            board = service.scoreboard().model_dump(mode="json")
+        except CarteraError as exc:
+            return _error(exc)
+        finally:
+            await market.aclose()
+            store.close()
+        return {
+            "ok": True,
+            "scoreboard": board,
+            "run": None if run is None else run.model_dump(mode="json"),
         }
 
     @server.resource("cartera://spec")

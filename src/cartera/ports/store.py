@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from cartera.domain.models import Lot, PortfolioSnapshot, Transaction
+from cartera.domain.proposals import Proposal, ProposalOutcome
 
 
 @runtime_checkable
@@ -32,6 +33,27 @@ class PortfolioStore(Protocol):
         ...
 
     def verify_audit_chain(self) -> bool: ...
+
+
+@runtime_checkable
+class ProposalJournal(Protocol):
+    """Append-only journal of proposals and their scored outcomes.
+
+    ``record_audit`` is part of the contract on purpose: recording a view is a
+    decision, and decisions are auditable. Nothing here can update or delete a
+    row — the database triggers reject that — so a scoreboard built on it cannot
+    be quietly revised.
+    """
+
+    def add_proposal(self, proposal: Proposal) -> None: ...
+
+    def proposals(self) -> list[Proposal]: ...
+
+    def add_outcome(self, outcome: ProposalOutcome) -> None: ...
+
+    def outcomes(self) -> list[ProposalOutcome]: ...
+
+    def record_audit(self, action: str, payload: dict[str, object]) -> str: ...
 
 
 @runtime_checkable

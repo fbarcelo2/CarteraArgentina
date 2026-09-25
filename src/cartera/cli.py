@@ -18,11 +18,16 @@ from cartera.app.services import (
     MarketQuotesResult,
     MarketService,
     PortfolioService,
+    ProposalRecordResult,
+    ProposalScoreResult,
+    ProposalService,
     ReportResult,
     ReportService,
+    decimal_or_none,
 )
 from cartera.config import Settings, load_settings
-from cartera.domain.errors import CarteraError
+from cartera.domain.errors import CarteraError, DomainError
+from cartera.domain.proposals import ProposalAction
 from cartera.ports.market_data import MarketSession
 from cartera.security.secrets import SECRET_KEYS, keyring_available, keyring_backend, store_secret
 from cartera.spec import manifest
@@ -31,9 +36,11 @@ app = typer.Typer(help="Read-only portfolio analytics for Argentine capital mark
 config_app = typer.Typer(help="Inspect and hydrate configuration.", no_args_is_help=True)
 market_app = typer.Typer(help="Market data queries (read-only).", no_args_is_help=True)
 portfolio_app = typer.Typer(help="Portfolio snapshot operations.", no_args_is_help=True)
+proposal_app = typer.Typer(help="The proposal journal: record views, score them later.", no_args_is_help=True)
 app.add_typer(config_app, name="config")
 app.add_typer(market_app, name="market")
 app.add_typer(portfolio_app, name="portfolio")
+app.add_typer(proposal_app, name="proposal")
 
 console = Console()
 ENV_OPTION = Annotated[Path | None, typer.Option("--env-file", help="Path to the .env used for bootstrap.")]
@@ -409,6 +416,131 @@ def config_hydrate(
         return
     env_file.unlink()
     console.print(f"[green]deleted[/green] {env_file} — secrets now come from the keyring.")
+
+
+@proposal_app.command("record")
+def proposal_record(
+    ticker: Annotated[str, typer.Argument(help="Asset the view is about.")],
+    action: Annotated[str, typer.Option("--action", help="buy, sell or hold.")],
+    rationale: Annotated[
+        str, typer.Option("--rationale", help="Why the view is held. Required: an unexplained view cannot be reviewed.")
+    ],
+    horizon_days: Annotated[int, typer.Option("--horizon", help="Days after which the view may be scored.")],
+    target_price: Annotated[
+        str | None,
+        typer.Option("--target", help="Optional target price, recorded for the reader, never used to score."),
+    ] = None,
+    env_file: ENV_OPTION = None,
+    as_json: JSON_OPTION = False,
+) -> None:
+    """Record a view now, at today's price, so it can be scored later."""
+    settings = _settings(env_file)
+    store = SqlitePortfolioStore(settings.db_path)
+
+    try:
+        parsed_action = ProposalAction(action.strip().lower())
+    except ValueError:
+        _guard("proposal record", DomainError(f"unknown action {action!r}: expected buy, sell or hold"))
+        return
+    try:
+        target = decimal_or_none(target_price)
+    except (ArithmeticError, ValueError):
+        _guard("proposal record", DomainError(f"target price {target_price!r} is not a number"))
+        return
+
+    async def run() -> ProposalRecordResult:
+        market = MarketService(settings)
+        try:
+            return await ProposalService(store, market).record(
+                ticker=ticker,
+                action=parsed_action,
+                rationale=rationale,
+                horizon_days=horizon_days,
+                target_price=target,
+            )
+        finally:
+            await market.aclose()
+
+    try:
+        try:
+            result = asyncio.run(run())
+        except CarteraError as exc:
+            _guard("proposal record", exc)
+    finally:
+        store.close()
+
+    _emit({"proposal": result.proposal, "audit_hash": result.audit_hash}, as_json, "recorded")
+
+
+@proposal_app.command("list")
+def proposal_list(env_file: ENV_OPTION = None, as_json: JSON_OPTION = False) -> None:
+    """Every proposal with its latest outcome."""
+    settings = _settings(env_file)
+    store = SqlitePortfolioStore(settings.db_path)
+    try:
+        journal = ProposalService(store, MarketService(settings)).journal()
+    finally:
+        store.close()
+    _emit({"count": len(journal), "proposals": journal}, as_json, "journal")
+
+
+@proposal_app.command("score")
+def proposal_score(
+    rescore: Annotated[bool, typer.Option("--rescore", help="Score again even if an outcome already exists.")] = False,
+    env_file: ENV_OPTION = None,
+    as_json: JSON_OPTION = False,
+) -> None:
+    """Score every proposal whose horizon has elapsed."""
+    settings = _settings(env_file)
+    store = SqlitePortfolioStore(settings.db_path)
+
+    async def run() -> ProposalScoreResult:
+        market = MarketService(settings)
+        try:
+            return await ProposalService(store, market).score(rescore=rescore)
+        finally:
+            await market.aclose()
+
+    try:
+        try:
+            result = asyncio.run(run())
+        except CarteraError as exc:
+            _guard("proposal score", exc)
+    finally:
+        store.close()
+
+    _emit(result.model_dump(mode="json"), as_json, "scored")
+
+
+@proposal_app.command("scoreboard")
+def proposal_scoreboard(
+    score_first: Annotated[
+        bool, typer.Option("--score/--no-score", help="Score due proposals before aggregating.")
+    ] = True,
+    env_file: ENV_OPTION = None,
+    as_json: JSON_OPTION = False,
+) -> None:
+    """The hit rate of everything this journal has claimed so far."""
+    settings = _settings(env_file)
+    store = SqlitePortfolioStore(settings.db_path)
+    service = ProposalService(store, MarketService(settings))
+
+    async def run() -> dict[str, object]:
+        scored = await service.score() if score_first else None
+        return {
+            "scoreboard": service.scoreboard().model_dump(mode="json"),
+            "run": None if scored is None else scored.model_dump(mode="json"),
+        }
+
+    try:
+        try:
+            payload = asyncio.run(run())
+        except CarteraError as exc:
+            _guard("proposal scoreboard", exc)
+    finally:
+        store.close()
+
+    _emit(payload, as_json, "scoreboard")
 
 
 def main() -> None:
