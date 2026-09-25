@@ -41,7 +41,7 @@ Phase 0 — read-only core. No broker credentials are used or stored.
 | Analyst persona (MCP resource + prompt) | working, invariant-tested |
 | Proposal journal + scoreboard | working, append-only, tested |
 | AI narrative | working, with a number guard that flags anything it cannot trace |
-| Web UI (loopback, token) | working, seven pages, placeholders for what is pending |
+| Web UI (loopback, token) | working, eight pages, placeholders for what is pending |
 | Broker adapters (order placement) | **not planned for this repository** |
 
 ## Install

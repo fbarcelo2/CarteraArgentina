@@ -601,7 +601,7 @@ def analyze(
     Every figure it is handed was computed here. A number in the answer that cannot
     be traced back to the input is reported, not hidden.
     """
-    from cartera.app.analysis import AnalysisResult, NarrativeService, backend_from_settings
+    from cartera.app.analysis import AnalysisResult, NarrativeService, backend_from_settings, narratable_figures
 
     settings = _settings(env_file)
     backend = backend_from_settings(settings)
@@ -617,15 +617,7 @@ def analyze(
         try:
             report = await ReportService(settings, store, market).build()
             board = ProposalService(store, market).scoreboard()
-            figures: dict[str, object] = {
-                "generated_at": report.generated_at,
-                "fresh": report.fresh,
-                "issues": report.issues,
-                "summary": report.summary,
-                "realized_pnl": report.realized_pnl,
-                "liquidation_costs": report.liquidation_costs,
-                "scoreboard": board.model_dump(mode="json"),
-            }
+            figures = narratable_figures(report, board)
             return await NarrativeService(backend, settings.llm_model).narrate(figures, focus)
         finally:
             # Closed in the same loop that opened it: an httpx pool is bound to its

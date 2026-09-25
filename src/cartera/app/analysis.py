@@ -22,7 +22,9 @@ from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel, ConfigDict, Field
 
 from cartera.adapters.openai_compat import OpenAICompatibleBackend
+from cartera.app.services import ReportResult
 from cartera.config import Settings
+from cartera.domain.proposals import Scoreboard
 from cartera.ports.store import AnalysisBackend
 from cartera.security.secrets import get_secret
 
@@ -94,6 +96,29 @@ def unverified_numbers(narrative: str, figures: object) -> list[str]:
         if not (_normalise(token) & allowed):
             foreign.append(token)
     return foreign
+
+
+def narratable_figures(report: ReportResult, scoreboard: Scoreboard) -> dict[str, object]:
+    """The payload the model receives: figures computed here, and nothing else.
+
+    Defined once and shared by the CLI and the UI. Two copies of this dictionary
+    would drift, and the guard would end up checking the prose against a set of
+    numbers that is not the set the reader was shown.
+
+    Provenance travels with the figures on purpose: the instructions ask the model
+    to say when data is stale, and it cannot do that if it is only handed values.
+    """
+    return {
+        "generated_at": report.generated_at,
+        "snapshot_as_of": report.snapshot_as_of,
+        "fresh": report.fresh,
+        "issues": report.issues,
+        "sources": report.sources,
+        "summary": report.summary,
+        "realized_pnl": report.realized_pnl,
+        "liquidation_costs": report.liquidation_costs,
+        "scoreboard": scoreboard.model_dump(mode="json"),
+    }
 
 
 class AnalysisResult(BaseModel):

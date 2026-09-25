@@ -17,12 +17,15 @@ like the MCP persona: the UI formats, it does not derive.
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -32,11 +35,13 @@ from fastapi.templating import Jinja2Templates
 from cartera import __version__
 from cartera.adapters.sqlite_store import SqlitePortfolioStore
 from cartera.agent import ANALYST_INSTRUCTIONS
+from cartera.app.analysis import AnalysisResult, NarrativeService, backend_from_settings, narratable_figures
 from cartera.app.services import MarketService, PortfolioService, ProposalService, ReportService
 from cartera.config import Settings
 from cartera.domain.errors import CarteraError
 from cartera.domain.proposals import ProposalAction
 from cartera.ports.market_data import MarketDataSource
+from cartera.ports.store import AnalysisBackend
 from cartera.security.secrets import get_secret, keyring_available, keyring_backend, store_secret
 
 COOKIE_NAME = "cartera_session"
@@ -59,6 +64,7 @@ NAV: tuple[tuple[str, str], ...] = (
     ("/portfolio", "Portfolio"),
     ("/market", "Market"),
     ("/journal", "Journal"),
+    ("/analysis", "Analysis"),
     ("/config", "Config"),
     ("/agent", "Analyst"),
     ("/roadmap", "Not built yet"),
@@ -87,14 +93,6 @@ PENDING_FEATURES: tuple[PendingFeature, ...] = (
             "An account with the official API activated. The adapter ships as a private module: "
             "the public core has no broker credentials, by design."
         ),
-    ),
-    PendingFeature(
-        title="Narrative analysis in the UI",
-        what=(
-            "Have the configured model summarise the computed figures on a page, "
-            "with the same number guard the CLI applies."
-        ),
-        blocked_by="The backend adapter and the CLI command exist; the UI page for them is not wired yet.",
     ),
     PendingFeature(
         title="Backtest",
@@ -165,12 +163,36 @@ def assert_loopback(host: str) -> None:
         )
 
 
-def build_app(settings: Settings, token: str, market_source: MarketDataSource | None = None) -> FastAPI:
+def _endpoint_label(url: str) -> str:
+    """The endpoint as it is safe to print: credentials in the URL are stripped.
+
+    Nothing in this configuration is supposed to carry them, which is exactly why a
+    page that shows the endpoint should not be the thing that leaks one.
+    """
+    parsed = urlparse(url)
+    if not (parsed.username or parsed.password):
+        return url
+    netloc = parsed.hostname or ""
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    return urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+
+
+def build_app(
+    settings: Settings,
+    token: str,
+    market_source: MarketDataSource | None = None,
+    analysis_backend: AnalysisBackend | None = None,
+) -> FastAPI:
     """Wire the pages. The token is mandatory: there is no unauthenticated mode.
 
     ``market_source`` exists so the UI can be exercised without the network: the
     tests drive the real app and the real use cases against a source whose
     timestamps they control, which is the only way to test the freshness gate.
+
+    ``analysis_backend`` is injected for the same reason, one step further: the page
+    that talks to a model must never reach the network under test, so the tests hand
+    it a backend they control and read the guard's verdict off the rendered page.
     """
     app = FastAPI(
         title="CarteraArgentina",
@@ -192,6 +214,38 @@ def build_app(settings: Settings, token: str, market_source: MarketDataSource | 
         }
         payload.update(extra)
         return TEMPLATES.TemplateResponse(request, name, payload, status_code=status_code)
+
+    #: The last narration this process produced, and when. In memory on purpose: a
+    #: narration is not a record, and re-running a model on every page load would be
+    #: slow and pointless. Restarting the UI forgets it.
+    last_analysis: dict[str, Any] = {"result": None, "at": None}
+
+    def analysis_backend_or_none() -> AnalysisBackend | None:
+        """The injected backend wins; otherwise the one the settings describe."""
+        if analysis_backend is not None:
+            return analysis_backend
+        return backend_from_settings(settings)
+
+    def analysis_context(error: str | None = None, focus: str = "") -> dict[str, Any]:
+        """What the page needs: whether a model exists, and the last answer."""
+        if analysis_backend is not None:
+            endpoint: str | None = f"injected ({analysis_backend.name})"
+        elif settings.llm_base_url:
+            endpoint = _endpoint_label(settings.llm_base_url)
+        else:
+            endpoint = None
+
+        result: AnalysisResult | None = last_analysis["result"]
+        return {
+            "error": error,
+            "focus": focus,
+            "backend_endpoint": endpoint,
+            "backend_model": settings.llm_model,
+            "backend_timeout": settings.llm_timeout_seconds,
+            "result": result,
+            "ran_at": last_analysis["at"],
+            "figures_json": (json.dumps(result.figures, indent=2, ensure_ascii=False, default=str) if result else ""),
+        }
 
     @app.middleware("http")
     async def require_token(request: Request, call_next: Any) -> Response:
@@ -315,6 +369,49 @@ def build_app(settings: Settings, token: str, market_source: MarketDataSource | 
             await market.aclose()
             store.close()
         return RedirectResponse("/journal", status_code=303)
+
+    @app.get("/analysis")
+    def analysis_page(request: Request) -> HTMLResponse:
+        return render(request, "analysis.html", **analysis_context())
+
+    @app.post("/analysis")
+    async def analysis_run(request: Request, focus: Annotated[str, Form()] = "") -> HTMLResponse:
+        """Ask the model about the figures as they stand right now.
+
+        The payload comes from ``narratable_figures``, the same function the CLI and
+        the MCP-facing code paths use, so the page cannot narrate a different set of
+        numbers than the command line would.
+        """
+        backend = analysis_backend_or_none()
+        if backend is None:
+            return render(
+                request,
+                "analysis.html",
+                status_code=400,
+                **analysis_context(error="No analysis backend is configured, so there is nothing to ask."),
+            )
+
+        wanted = focus.strip()
+        store = SqlitePortfolioStore(settings.db_path)
+        market = MarketService(settings, source=market_source)
+        try:
+            report = await ReportService(settings, store, market).build()
+            board = ProposalService(store, market).scoreboard()
+            result = await NarrativeService(backend, settings.llm_model).narrate(
+                narratable_figures(report, board), wanted or None
+            )
+        except CarteraError as exc:
+            # A backend that is down is a sentence, not a 500: the page has to stay
+            # readable enough to say which endpoint failed and why.
+            return render(request, "analysis.html", **analysis_context(error=str(exc), focus=wanted))
+        finally:
+            await market.aclose()
+            store.close()
+            await backend.aclose()
+
+        last_analysis["result"] = result
+        last_analysis["at"] = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        return render(request, "analysis.html", **analysis_context(focus=wanted))
 
     @app.get("/config")
     def config(request: Request) -> HTMLResponse:

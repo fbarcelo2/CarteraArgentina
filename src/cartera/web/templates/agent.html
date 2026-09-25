@@ -19,12 +19,16 @@
 <h2>Invariants</h2>
 <pre>{{ instructions }}</pre>
 
-<h2>Not built yet</h2>
-{% for feature in pending if "Narrative" in feature.title %}
-  <div class="card pending">
-    <h3>{{ feature.title }}</h3>
-    <p class="what">{{ feature.what }}</p>
-    <p class="blocked">Blocked by: {{ feature.blocked_by }}</p>
-  </div>
-{% endfor %}
+<h2>Where this runs</h2>
+<div class="card">
+  <p class="what">
+    The <a href="/analysis">Analysis</a> page asks the configured model to narrate the
+    figures and then checks every number in the answer against them. The CLI does the
+    same through <code>cartera analyze</code>. No other surface calls a model.
+  </p>
+  <p class="blocked">
+    With no backend configured that page explains what to set rather than failing, and
+    says so plainly: nothing else in this tool needs a model.
+  </p>
+</div>
 {% endblock %}

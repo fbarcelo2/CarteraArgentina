@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Analysis — CarteraArgentina{% endblock %}
+{% block content %}
+<h1>Analysis</h1>
+<p class="lede">
+  The model writes prose about figures that were computed here, and the code checks
+  the prose against them afterwards. Any number in the answer that cannot be traced
+  back to the figures is listed below rather than smoothed over: a narrative that
+  quietly invents a figure is worse than no narrative.
+</p>
+
+{% if error %}
+  <div class="notice bad">{{ error }}</div>
+{% endif %}
+
+{% if not backend_endpoint %}
+  <h2>No model configured</h2>
+  <div class="card">
+    <p>
+      This installation has no analysis backend, which is the shipped state and not a
+      fault: nothing else in this tool needs a model. Every other page computes its own
+      figures in code.
+    </p>
+    <p>To enable the narration, set these in the environment file and restart:</p>
+    <pre>CARTERA_LLM_BASE_URL="http://127.0.0.1:8080/v1"
+CARTERA_LLM_MODEL="qwen3-4b"</pre>
+    <p class="blocked">
+      Any OpenAI-compatible endpoint will do: llama.cpp, Ollama and vLLM all speak this
+      shape. Keep it local if the portfolio is private — the figures leave this machine
+      when the model is remote. The API key, if the endpoint needs one, belongs in the
+      keyring under <code>CARTERA_LLM_API_KEY</code>, never in the file.
+    </p>
+  </div>
+{% else %}
+  <h2>Backend</h2>
+  <div class="card">
+    <table>
+      <tbody>
+        <tr><td>Endpoint</td><td>{{ backend_endpoint }}</td></tr>
+        <tr><td>Model</td><td>{{ backend_model }}</td></tr>
+        <tr><td>Timeout</td><td>{{ backend_timeout }}s</td></tr>
+      </tbody>
+    </table>
+    <p class="blocked">
+      The figures are sent to that endpoint. If it is remote, they leave your machine.
+    </p>
+  </div>
+
+  <h2>Generate</h2>
+  <div class="card">
+    <form method="post" action="/analysis">
+      <label for="focus">Focus (optional)</label>
+      <input type="text" id="focus" name="focus" value="{{ focus }}" placeholder="concentration, freshness, the scoreboard">
+      <button type="submit">Narrate the current figures</button>
+    </form>
+    <p class="blocked">
+      This asks the model every time you press the button and can take a while. The last
+      answer is kept in memory for this session only — it is not written to the database,
+      because a narration is not a record.
+    </p>
+  </div>
+
+  {% if result %}
+    <h2>Result</h2>
+    <div class="card">
+      <p class="what">
+        {{ result.model }} via {{ result.backend }}{% if ran_at %} — {{ ran_at }}{% endif %}
+      </p>
+      <p>{{ result.narrative }}</p>
+      {% if result.verified %}
+        <div class="notice ok">
+          Every number in that answer appears in the figures below. The check is a lint,
+          not a proof: it traces formatting, it does not validate the reasoning.
+        </div>
+      {% else %}
+        <div class="notice bad">
+          <strong>Unverified numbers:</strong> {{ result.unverified_numbers | join(", ") }}
+          — these do not appear in the figures and the model had no basis for them.
+          Treat the whole answer with suspicion.
+        </div>
+      {% endif %}
+      <details>
+        <summary>The figures it was given</summary>
+        <pre>{{ figures_json }}</pre>
+      </details>
+    </div>
+  {% elif not error %}
+    <div class="card pending">
+      <h3>Nothing narrated yet</h3>
+      <p class="what">Press the button to ask the model about the figures computed right now.</p>
+    </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

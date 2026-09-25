@@ -100,7 +100,7 @@
 </div>
 
 <h2>Not built yet</h2>
-{% for feature in pending if "Narrative" in feature.title or "Scheduled" in feature.title %}
+{% for feature in pending if "Scheduled" in feature.title %}
   <div class="card pending">
     <h3>{{ feature.title }}</h3>
     <p class="what">{{ feature.what }}</p>

@@ -96,6 +96,7 @@ WEB_PAGES: tuple[str, ...] = (
     "/portfolio",
     "/market",
     "/journal",
+    "/analysis",
     "/config",
     "/agent",
     "/roadmap",
