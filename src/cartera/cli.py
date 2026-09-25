@@ -545,11 +545,11 @@ def proposal_scoreboard(
 
 @app.command("web")
 def web(
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8787,
+    port: Annotated[int | None, typer.Option("--port", help="Port to listen on.")] = None,
     host: Annotated[
-        str,
+        str | None,
         typer.Option("--host", help="Loopback address to bind. Anything else is refused."),
-    ] = "127.0.0.1",
+    ] = None,
     env_file: ENV_OPTION = None,
 ) -> None:
     """Serve the local read-only UI. Loopback only, one shared token."""
@@ -558,6 +558,9 @@ def web(
     from cartera.web.app import assert_loopback, build_app, resolve_web_token
 
     settings = _settings(env_file)
+    # The flags win; the documented environment variables are the default.
+    host = host or settings.web_host
+    port = port or settings.web_port
     try:
         assert_loopback(host)
     except CarteraError as exc:
@@ -582,6 +585,74 @@ def web(
         # yourself to avoid it ever reaching a screen or a log.
         console.print(f"[yellow]token:[/yellow] {token}")
     uvicorn.run(build_app(settings, token), host=host, port=port, log_level="warning")
+
+
+@app.command("analyze")
+def analyze(
+    focus: Annotated[
+        str | None,
+        typer.Option("--focus", help='Optional area to concentrate on, e.g. "concentration".'),
+    ] = None,
+    env_file: ENV_OPTION = None,
+    as_json: JSON_OPTION = False,
+) -> None:
+    """Narrate the report and the scoreboard with the configured model.
+
+    Every figure it is handed was computed here. A number in the answer that cannot
+    be traced back to the input is reported, not hidden.
+    """
+    from cartera.app.analysis import AnalysisResult, NarrativeService, backend_from_settings
+
+    settings = _settings(env_file)
+    backend = backend_from_settings(settings)
+    if backend is None:
+        console.print("[yellow]no analysis backend configured.[/yellow] Set CARTERA_ANALYSIS_BASE_URL")
+        console.print("to an OpenAI-compatible endpoint. Nothing else in this tool needs one.")
+        raise typer.Exit(code=2)
+
+    store = SqlitePortfolioStore(settings.db_path)
+
+    async def run() -> AnalysisResult:
+        market = MarketService(settings)
+        try:
+            report = await ReportService(settings, store, market).build()
+            board = ProposalService(store, market).scoreboard()
+            figures: dict[str, object] = {
+                "generated_at": report.generated_at,
+                "fresh": report.fresh,
+                "issues": report.issues,
+                "summary": report.summary,
+                "realized_pnl": report.realized_pnl,
+                "liquidation_costs": report.liquidation_costs,
+                "scoreboard": board.model_dump(mode="json"),
+            }
+            return await NarrativeService(backend, settings.llm_model).narrate(figures, focus)
+        finally:
+            # Closed in the same loop that opened it: an httpx pool is bound to its
+            # event loop, and closing it from another one raises.
+            await backend.aclose()
+            await market.aclose()
+
+    try:
+        try:
+            result = asyncio.run(run())
+        except CarteraError as exc:
+            _guard("analyze", exc)
+            return
+    finally:
+        store.close()
+
+    if as_json:
+        console.print_json(result.model_dump_json())
+        return
+    console.print(result.narrative)
+    if result.verified:
+        console.print(f"\n[green]every number traces back to the computed figures[/green] (backend: {result.backend})")
+    else:
+        console.print(
+            f"\n[red]unverified numbers:[/red] {', '.join(result.unverified_numbers)} — "
+            "they are not in the computed figures, so treat the note as unreliable.",
+        )
 
 
 def main() -> None:

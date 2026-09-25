@@ -47,6 +47,15 @@ class Settings:
     http_timeout_seconds: float
     max_quote_age_seconds: float
     commission_pct: dict[AssetType, Decimal]
+    #: Where the narration model lives. ``None`` means no backend is configured,
+    #: which is the shipped default: the deterministic core never needs one.
+    llm_base_url: str | None = None
+    llm_model: str = "local"
+    llm_timeout_seconds: float = 120.0
+    #: Defaults for ``cartera web``. The host is still checked against loopback in
+    #: the web module, so setting it to something open is refused rather than obeyed.
+    web_host: str = "127.0.0.1"
+    web_port: int = 8787
     env_file_used: Path | None = None
     loaded_secrets: tuple[str, ...] = field(default=())
 
@@ -111,6 +120,11 @@ def load_settings(env_file: Path | None = None, overrides: dict[str, str] | None
             get("CARTERA_MAX_QUOTE_AGE_S", str(DEFAULT_MAX_QUOTE_AGE_SECONDS)) or 0,
         ),
         commission_pct=_commission_schedule(env),
+        llm_base_url=get("CARTERA_LLM_BASE_URL"),
+        llm_model=get("CARTERA_LLM_MODEL", "local") or "local",
+        llm_timeout_seconds=float(get("CARTERA_LLM_TIMEOUT_S", "120") or 120),
+        web_host=get("CARTERA_WEB_HOST", "127.0.0.1") or "127.0.0.1",
+        web_port=int(get("CARTERA_WEB_PORT", "8787") or 8787),
         env_file_used=candidate_env if candidate_env.is_file() else None,
         loaded_secrets=loaded_secrets,
     )

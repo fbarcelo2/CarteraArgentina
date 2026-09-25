@@ -13,6 +13,7 @@ from typing import Any
 from cartera import __version__
 
 CLI_COMMANDS: tuple[str, ...] = (
+    "analyze",
     "config show",
     "config hydrate",
     "doctor",

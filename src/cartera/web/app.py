@@ -89,9 +89,12 @@ PENDING_FEATURES: tuple[PendingFeature, ...] = (
         ),
     ),
     PendingFeature(
-        title="Narrative analysis",
-        what="Have a model summarise the computed figures in prose, in the language you configure.",
-        blocked_by="The analysis backend adapter is not wired to this surface yet.",
+        title="Narrative analysis in the UI",
+        what=(
+            "Have the configured model summarise the computed figures on a page, "
+            "with the same number guard the CLI applies."
+        ),
+        blocked_by="The backend adapter and the CLI command exist; the UI page for them is not wired yet.",
     ),
     PendingFeature(
         title="Backtest",

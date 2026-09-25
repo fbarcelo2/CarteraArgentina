@@ -39,8 +39,9 @@ Phase 0 — read-only core. No broker credentials are used or stored.
 | CLI | working |
 | MCP server (stdio) | working, verified with a real client |
 | Analyst persona (MCP resource + prompt) | working, invariant-tested |
-| AI narrative | interface only, no backend bundled |
-| Web UI | planned |
+| Proposal journal + scoreboard | working, append-only, tested |
+| AI narrative | working, with a number guard that flags anything it cannot trace |
+| Web UI (loopback, token) | working, seven pages, placeholders for what is pending |
 | Broker adapters (order placement) | **not planned for this repository** |
 
 ## Install
