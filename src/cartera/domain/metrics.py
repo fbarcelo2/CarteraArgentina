@@ -79,6 +79,34 @@ def quote_index(quotes: list[Quote]) -> dict[str, Quote]:
     return {quote.ticker: quote for quote in quotes}
 
 
+#: Instruments quoted per 100 nominal value rather than per unit: bonds, corporate
+#: bonds (obligaciones negociables) and treasury bills. Verified against the
+#: operator's own printed amounts, which divide by a hundred for exactly these and
+#: for nothing else in a real portfolio.
+FIXED_INCOME = frozenset({AssetType.BOND, AssetType.CORP_BOND, AssetType.LETER})
+
+#: The quote base for fixed income: a price quoted "per 100 nominales".
+NOMINAL_BASE = Decimal("100")
+
+
+def market_value_of(asset_type: AssetType, quantity: Decimal, price: Decimal) -> Decimal:
+    """What a position is worth at a quote, in the quote's currency.
+
+    A holding of 5,775 nominales of a bond quoted at 84,130 is worth 4,858,507.50,
+    not 485,850,750: fixed income quotes are per 100 nominal value here. The
+    distinction costs a factor of a hundred when it is missed, and the wrong number
+    looks entirely plausible on screen, which is why it lives in the domain as a
+    named rule with tests rather than as an inline multiplication.
+
+    Options are deliberately not classified: their quotation convention has not been
+    verified against a real contract, and an unverified convention placed beside a
+    verified one is worse than one that is openly missing.
+    """
+    if asset_type in FIXED_INCOME:
+        return quantity * price / NOMINAL_BASE
+    return quantity * price
+
+
 def valuate(
     snapshot: PortfolioSnapshot,
     quotes: list[Quote],
@@ -104,7 +132,7 @@ def valuate(
         for position in in_currency:
             quote = index.get(position.ticker)
             if quote is not None:
-                values[position.ticker] = money(position.quantity * quote.price)
+                values[position.ticker] = money(market_value_of(position.asset_type, position.quantity, quote.price))
 
         market_value = money(sum(values.values(), Decimal("0")))
         weights = (
@@ -184,7 +212,7 @@ def liquidation_costs(
         quote = index.get(position.ticker)
         if quote is None:
             continue
-        gross = money(position.quantity * quote.price)
+        gross = money(market_value_of(position.asset_type, position.quantity, quote.price))
         fee = commission_for(position.asset_type, gross, overrides)
         totals[position.currency] = totals.get(position.currency, Decimal("0")) + fee
     return {currency: money(amount) for currency, amount in totals.items()}

@@ -42,11 +42,11 @@ def test_valuation_per_currency(portfolio: PortfolioSnapshot, quotes: list[Quote
     summary = valuate(portfolio, quotes)
 
     ars = summary.valuations[Currency.ARS]
-    assert ars.market_value == Decimal("1485000.00")
+    assert ars.market_value == Decimal("643500.00")
     assert ars.cost_basis == Decimal("1414093.00")
-    assert ars.unrealized_pnl == Decimal("70907.00")
+    assert ars.unrealized_pnl == Decimal("-770593.00")
     assert ars.cash == Decimal("300000.00")
-    assert ars.total == Decimal("1785000.00")
+    assert ars.total == Decimal("943500.00")
 
     usd = summary.valuations[Currency.USD]
     assert usd.market_value == Decimal("360.00")
@@ -57,7 +57,7 @@ def test_valuation_per_currency(portfolio: PortfolioSnapshot, quotes: list[Quote
 
 def test_weights_sum_to_one(portfolio: PortfolioSnapshot, quotes: list[Quote]) -> None:
     ars = valuate(portfolio, quotes).valuations[Currency.ARS]
-    assert ars.weights == {"GGAL": Decimal("0.3502"), "AAPL": Decimal("0.0774"), "AL30": Decimal("0.5724")}
+    assert ars.weights == {"GGAL": Decimal("0.8081"), "AAPL": Decimal("0.1787"), "AL30": Decimal("0.0132")}
     assert sum(ars.weights.values()) == Decimal("1.0000")
 
 

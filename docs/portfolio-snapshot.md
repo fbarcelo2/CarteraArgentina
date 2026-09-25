@@ -39,7 +39,7 @@ each currency. The tool never sees your broker credentials to read it.
 | `ticker` | yes | Uppercased automatically. |
 | `asset_type` | yes | `equity`, `cedear`, `bond`, `corp_bond`, `leter`, `option`, `fund`. Drives the fee schedule. |
 | `quantity` | yes | Greater than zero. Selling is recorded as a transaction, not as a negative lot. |
-| `unit_price` | yes | Price per unit at purchase, commission excluded. |
+| `unit_price` | yes | Price per unit at purchase, commission excluded. **For fixed income it is the price per nominal**: a quote of 84,130 per 100 nominales is entered as 841.30. Entering the quoted price makes the cost basis a hundred times too high, and the result is a number that still looks like a number. |
 | `fees` | no | Total commission paid for the purchase. Part of the cost basis. |
 | `currency` | yes | `ARS` or `USD`. |
 | `settlement` | no | `1` (CI), `2` (24hs), `3` (48hs). Defaults to CI. |

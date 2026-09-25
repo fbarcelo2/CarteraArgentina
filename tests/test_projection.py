@@ -31,6 +31,9 @@ from cartera.domain.errors import CarteraError
 
 TICKERS = ("GGAL", "AAPL", "AL30", "KO")
 
+#: A synthetic payload. Its numbers are not a valuation — they are whatever shape the
+#: projection has to cope with. A real one applies the per-100 nominal rule to fixed
+#: income (see test_fixed_income.py), so do not copy these figures as expectations.
 FIGURES: dict[str, object] = {
     "generated_at": "2026-09-25T15:00:00-03:00",
     "snapshot_as_of": "2026-02-10T11:00:00-03:00",

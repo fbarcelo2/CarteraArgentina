@@ -37,7 +37,9 @@ def test_the_type_breakdown_accounts_for_the_whole_book(portfolio: PortfolioSnap
     ars = next(book for book in build(portfolio, quotes).currencies if book.currency is Currency.ARS)
 
     by_type = {group.label: group for group in ars.by_asset_type}
-    assert by_type["bond"].market_value == Decimal("850000.00")
+    # The bond leg is quoted per 100 nominal value: 1,000 nominales at 850 is 8,500,
+    # not 850,000. See test_fixed_income.py for the operator-verified cases.
+    assert by_type["bond"].market_value == Decimal("8500.00")
     assert by_type["cedear"].market_value == Decimal("115000.00")
     assert by_type["equity"].market_value == Decimal("520000.00")
     assert by_type["bond"].instruments == 1
@@ -45,27 +47,27 @@ def test_the_type_breakdown_accounts_for_the_whole_book(portfolio: PortfolioSnap
 
 
 def test_weights_are_percentages_and_not_fractions(portfolio: PortfolioSnapshot, quotes: list) -> None:
-    """0.3502 and 35.02 are the same number to a machine and different ones to a reader."""
+    """0.8081 and 80.81 are the same number to a machine and different ones to a reader."""
     ars = next(book for book in build(portfolio, quotes).currencies if book.currency is Currency.ARS)
 
     weights = {group.label: group.weight_pct for group in ars.by_instrument}
-    assert weights["GGAL"] == Decimal("35.02")  # 520000 / 1485000
-    assert weights["AAPL"] == Decimal("7.74")  # 115000 / 1485000
-    assert weights["AL30"] == Decimal("57.24")  # 850000 / 1485000
+    assert weights["GGAL"] == Decimal("80.81")  # 520000 / 643500
+    assert weights["AAPL"] == Decimal("17.87")  # 115000 / 643500
+    assert weights["AL30"] == Decimal("1.32")  # 8500 / 643500
     assert sum(value for value in weights.values() if value is not None) == Decimal("100.00")
 
 
 def test_the_largest_holding_is_the_biggest_one_by_value(portfolio: PortfolioSnapshot, quotes: list) -> None:
     ars = next(book for book in build(portfolio, quotes).currencies if book.currency is Currency.ARS)
     assert ars.largest is not None
-    assert ars.largest.label == "AL30"
-    assert ars.largest.weight_pct == Decimal("57.24")
+    assert ars.largest.label == "GGAL"
+    assert ars.largest.weight_pct == Decimal("80.81")
 
 
 def test_a_cedear_is_reported_as_foreign_exposure(portfolio: PortfolioSnapshot, quotes: list) -> None:
     """A cedear is foreign equity in a local wrapper; the ticker alone hides that."""
     ars = next(book for book in build(portfolio, quotes).currencies if book.currency is Currency.ARS)
-    assert ars.foreign_pct == Decimal("7.74")
+    assert ars.foreign_pct == Decimal("17.87")
 
 
 def test_a_usd_equity_is_not_counted_as_a_cedear(portfolio: PortfolioSnapshot, quotes: list) -> None:

@@ -98,10 +98,10 @@ async def test_fresh_quotes_publish_numbers(
     # its shape, so the shape is stated once here rather than at every access.
     valuations = cast("dict[str, dict[str, str]]", result.summary["valuations"])
     ars = valuations["ARS"]
-    assert ars["market_value"] == "1485000.00"
-    assert ars["unrealized_pnl"] == "70907.00"
-    # 0.33% of 520,000 + 0.33% of 115,000 + 0.26% of 850,000
-    assert result.liquidation_costs["ARS"] == "4305.50"
+    assert ars["market_value"] == "643500.00"
+    assert ars["unrealized_pnl"] == "-770593.00"
+    # 0.33% of 520,000 + 0.33% of 115,000 + 0.26% of 8,500
+    assert result.liquidation_costs["ARS"] == "2117.60"
     assert result.realized_pnl == {}
 
 

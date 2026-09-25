@@ -135,7 +135,7 @@ def test_the_dashboard_shows_the_gate_and_the_scoreboard(
     # The exposure breakdown is part of the same report and is rendered from it.
     assert "Exposure" in response.text
     assert "Largest holding" in response.text
-    assert "57.24" in response.text, "AL30 weighs 850000 of 1485000 in the fixture book"
+    assert "80.81" in response.text, "GGAL weighs 520000 of 643500 in the fixture book"
     assert "Through cedears" in response.text
 
 
