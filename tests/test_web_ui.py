@@ -132,6 +132,12 @@ def test_the_dashboard_shows_the_gate_and_the_scoreboard(
     assert "Nothing recorded yet" in response.text
     assert "Hit rate" not in response.text, "an empty journal must not show a rate at all"
 
+    # The exposure breakdown is part of the same report and is rendered from it.
+    assert "Exposure" in response.text
+    assert "Largest holding" in response.text
+    assert "57.24" in response.text, "AL30 weighs 850000 of 1485000 in the fixture book"
+    assert "Through cedears" in response.text
+
 
 async def test_a_board_with_only_pending_views_says_so_instead_of_showing_a_rate(
     signed_in: TestClient,
@@ -409,6 +415,7 @@ async def test_the_payload_comes_from_the_real_report_and_scoreboard(settings: S
         "summary",
         "realized_pnl",
         "liquidation_costs",
+        "exposure",
         "scoreboard",
     }
     assert figures["scoreboard"], "the scoreboard travels with the figures"

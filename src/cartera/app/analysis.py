@@ -117,6 +117,7 @@ def narratable_figures(report: ReportResult, scoreboard: Scoreboard) -> dict[str
         "summary": report.summary,
         "realized_pnl": report.realized_pnl,
         "liquidation_costs": report.liquidation_costs,
+        "exposure": report.exposure.model_dump(mode="json") if report.exposure else None,
         "scoreboard": scoreboard.model_dump(mode="json"),
     }
 

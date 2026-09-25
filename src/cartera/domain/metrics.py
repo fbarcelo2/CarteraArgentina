@@ -40,6 +40,10 @@ class Valuation(BaseModel):
     cash: Decimal
     total: Decimal
     weights: dict[str, Decimal] = Field(default_factory=dict)
+    #: Market value per ticker, before it is turned into weights. Kept here so a
+    #: breakdown cannot value the same portfolio a second time and disagree with
+    #: the total it is supposed to explain.
+    market_values: dict[str, Decimal] = Field(default_factory=dict)
 
     @property
     def unrealized_pnl_pct(self) -> Decimal | None:
@@ -117,6 +121,7 @@ def valuate(
             cash=cash,
             total=money(market_value + cash),
             weights=weights,
+            market_values=values,
         )
 
     return PortfolioSummary(

@@ -23,6 +23,7 @@ from cartera.domain.errors import (
     SourceUnavailableError,
     UnknownTickerError,
 )
+from cartera.domain.exposure import ExposureReport, exposure_report
 from cartera.domain.metrics import liquidation_costs, realized_pnl, valuate
 from cartera.domain.models import PortfolioSnapshot, Quote, Settlement
 from cartera.domain.money import Currency
@@ -120,6 +121,9 @@ class ReportResult(BaseModel):
     liquidation_costs: dict[str, str] = Field(default_factory=dict)
     snapshot_as_of: str | None = None
     sources: list[str] = Field(default_factory=list)
+    #: Grouped exposure, valued from the same figures as ``summary`` and never
+    #: independently, so the breakdown cannot contradict the total it explains.
+    exposure: ExposureReport | None = None
 
 
 class MarketService:
@@ -321,6 +325,7 @@ class ReportService:
             },
             realized_pnl={currency.value: str(amount) for currency, amount in realized.items()},
             liquidation_costs={currency.value: str(amount) for currency, amount in costs.items()},
+            exposure=exposure_report(summary, snapshot),
         )
 
     @staticmethod

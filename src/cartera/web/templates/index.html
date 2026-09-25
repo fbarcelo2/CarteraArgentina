@@ -53,6 +53,68 @@
         </tbody>
       </table>
     </div>
+
+    {% if report.exposure and report.exposure.currencies %}
+      <h2>Exposure</h2>
+      <p class="lede">
+        Grouped from the same valuation above, never re-priced. One currency at a time:
+        adding ARS and USD needs an exchange rate with its own provenance, so this view
+        refuses to invent a consolidated total.
+      </p>
+      {% for book in report.exposure.currencies %}
+        <div class="card">
+          <h3>{{ book.currency.value }}</h3>
+          <div class="grid">
+            <div><div class="label">Market value</div><div class="kpi small">{{ book.market_value }}</div></div>
+            <div><div class="label">Cash</div><div class="kpi small">{{ book.cash }}</div></div>
+            <div>
+              <div class="label">Largest holding</div>
+              <div class="kpi small">
+                {% if book.largest %}{{ book.largest.label }} — {{ book.largest.weight_pct }}%{% else %}—{% endif %}
+              </div>
+            </div>
+            <div>
+              <div class="label">Through cedears</div>
+              <div class="kpi small">{% if book.foreign_pct is not none %}{{ book.foreign_pct }}%{% else %}—{% endif %}</div>
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>Asset type</th><th class="num">Market value</th><th class="num">Weight</th><th class="num">Instruments</th></tr></thead>
+            <tbody>
+              {% for group in book.by_asset_type %}
+                <tr>
+                  <td>{{ group.label }}</td>
+                  <td class="num">{{ group.market_value }}</td>
+                  <td class="num">{{ group.weight_pct if group.weight_pct is not none else "—" }}%</td>
+                  <td class="num">{{ group.instruments }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if book.unpriced %}
+            <div class="notice bad">
+              No price for <strong>{{ book.unpriced | join(", ") }}</strong>: left out of every
+              percentage above, which is why the rows can sum to less than the total.
+            </div>
+          {% endif %}
+          <details>
+            <summary>By instrument — {{ book.by_instrument | length }}</summary>
+            <table>
+              <thead><tr><th>Instrument</th><th class="num">Market value</th><th class="num">Weight</th></tr></thead>
+              <tbody>
+                {% for group in book.by_instrument %}
+                  <tr>
+                    <td>{{ group.label }}</td>
+                    <td class="num">{{ group.market_value }}</td>
+                    <td class="num">{{ group.weight_pct if group.weight_pct is not none else "—" }}%</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </details>
+        </div>
+      {% endfor %}
+    {% endif %}
   {% endif %}
 
   {% if report.realized_pnl %}
