@@ -1,0 +1,13 @@
+---
+# Actions are pinned to exact tags, not moving major tags: the pinned version is
+# the one whose manifest was read and verified. Dependabot keeps those pins
+# current, which is what makes exact pinning maintainable instead of stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    labels: ["dependencies", "ci"]

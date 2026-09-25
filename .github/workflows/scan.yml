@@ -19,7 +19,7 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
       # Deliberately not gitleaks-action: on a repository's first push it derives
@@ -39,9 +39,9 @@ jobs:
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v10.2.0
       # Audit the locked dependency set, not this project. This project is not
       # published on PyPI, and `pip-audit --strict` exits non-zero on any package
       # it cannot resolve — which turned a clean audit into a red build.
