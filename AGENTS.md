@@ -40,11 +40,18 @@ Instructions for AI agents (and humans) contributing to this repository.
 
 ```bash
 uv sync                     # install (dependencies are pinned by uv.lock)
+scripts/validate.sh         # the whole stack: lint, types, security, deps, dead code, secrets, tests + coverage
+scripts/validate.sh --quick # static checks only, for a fast loop
+scripts/install-validators.sh  # one-time: the external single-binary validators
 uv run ruff check .         # lint, must be clean
 uv run pytest -q            # tests, must be green
 uv run cartera doctor       # end-to-end health check (hits the live source)
 uv run cartera spec --json  # capability manifest
 ```
+
+`scripts/validate.sh` is the single source of truth for validation: CI runs the
+same script, so the local loop and the pipeline cannot drift. A tool that is not
+installed is reported as SKIP, never silently as a pass.
 
 ## When changing the market-data contract
 

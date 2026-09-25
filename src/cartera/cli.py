@@ -177,7 +177,10 @@ def report(env_file: ENV_OPTION = None, as_json: JSON_OPTION = False) -> None:
 
 def _render_report(result: ReportResult) -> None:
     summary = result.summary or {}
-    valuations = summary.get("valuations", {}) if isinstance(summary, dict) else {}
+    raw_valuations = summary.get("valuations") if isinstance(summary, dict) else None
+    # The summary is a JSON-shaped mapping, so it is narrowed here rather than
+    # trusted: an unguarded .items() on a non-mapping crashes the report render.
+    valuations: dict[str, dict[str, str]] = raw_valuations if isinstance(raw_valuations, dict) else {}
     table = Table(title=f"Valuation as of {result.snapshot_as_of}")
     for column in ("currency", "market value", "cost basis", "unrealized", "cash", "total"):
         table.add_column(column)
@@ -361,7 +364,14 @@ def config_hydrate(
         raise typer.Exit(code=2)
 
     values = dotenv_values(env_file)
-    present = [(key, values[key]) for key in SECRET_KEYS if values.get(key)]
+    # An explicit loop, not a comprehension: it narrows str | None to str for both
+    # the type checker and a reader. A key present with an empty value is skipped
+    # rather than stored, which a `values.get(key)` filter does silently.
+    present: list[tuple[str, str]] = []
+    for key in SECRET_KEYS:
+        value = values.get(key)
+        if value:
+            present.append((key, value))
     if not present:
         names = ", ".join(SECRET_KEYS)
         console.print(f"[green]nothing to hydrate[/green] — {env_file} has no secret values ({names}).")

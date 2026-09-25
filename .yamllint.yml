@@ -1,0 +1,20 @@
+---
+# Aligned with the Python limit (ruff E501 = 120): an `uses:` line or a shell
+# pipeline in a workflow becomes unreadable when wrapped at 80.
+extends: default
+
+rules:
+  line-length:
+    max: 120
+    level: warning
+  # `on:` is not a boolean in a workflow, it is the trigger key. YAML 1.1 reads
+  # bare `on` as a boolean, so the default truthy rule flags every Actions file.
+  truthy:
+    check-keys: false
+  document-start:
+    level: warning
+  comments-indentation: disable
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1

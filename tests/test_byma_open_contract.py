@@ -144,6 +144,8 @@ async def test_market_session_is_parsed(client: httpx.AsyncClient) -> None:
     session = await BymaOpenDataSource(client).fetch_session()
 
     assert session.is_working_day is True
+    assert session.opens_at is not None, "a working day must publish an opening time"
+    assert session.closes_at is not None, "a working day must publish a closing time"
     assert session.opens_at.isoformat() == "10:30:00"
     assert session.closes_at.isoformat() == "17:00:00"
 

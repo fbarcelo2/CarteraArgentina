@@ -69,19 +69,29 @@ def get_secret(key: str) -> str | None:
         return None
 
 
+def _unavailable(key: str) -> SecretStatus:
+    """The status for "this host has no usable secret store"."""
+    return SecretStatus(
+        key=key,
+        stored=False,
+        verified=False,
+        backend=None,
+        detail="no OS keyring available (containers have no Secret Service)",
+    )
+
+
 def store_secret(key: str, value: str) -> SecretStatus:
-    """Store a secret and verify the round-trip before reporting success."""
+    """Store a secret and verify the round-trip before reporting success.
+
+    The backend name and the module are resolved together and checked in one
+    guard: an ``assert`` for narrowing is stripped under ``python -O``, which
+    would leave the next line to fail with an unrelated error.
+    """
     backend = keyring_backend()
-    if backend is None:
-        return SecretStatus(
-            key=key,
-            stored=False,
-            verified=False,
-            backend=None,
-            detail="no OS keyring available (containers have no Secret Service)",
-        )
     keyring = _keyring()
-    assert keyring is not None  # noqa: S101 - guarded by backend check
+    if backend is None or keyring is None:
+        return _unavailable(key)
+
     try:
         keyring.set_password(SERVICE_NAME, key, value)
     except Exception as exc:

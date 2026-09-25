@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterator
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -93,7 +94,10 @@ async def test_fresh_quotes_publish_numbers(
 
     assert result.fresh is True
     assert result.summary is not None
-    ars = result.summary["valuations"]["ARS"]
+    # The summary is a JSON-shaped payload (dict[str, object]); the test asserts
+    # its shape, so the shape is stated once here rather than at every access.
+    valuations = cast("dict[str, dict[str, str]]", result.summary["valuations"])
+    ars = valuations["ARS"]
     assert ars["market_value"] == "1485000.00"
     assert ars["unrealized_pnl"] == "70907.00"
     # 0.33% of 520,000 + 0.33% of 115,000 + 0.26% of 850,000
@@ -155,7 +159,8 @@ async def test_unpriced_ticker_is_flagged_but_does_not_block(
 
     assert result.fresh is True
     assert result.summary is not None
-    assert sorted(result.summary["unpriced_tickers"]) == ["AAPL", "AL30", "KO"]
+    unpriced = cast("list[str]", result.summary["unpriced_tickers"])
+    assert sorted(unpriced) == ["AAPL", "AL30", "KO"]
 
 
 async def test_report_records_an_audit_entry(

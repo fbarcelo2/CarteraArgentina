@@ -116,6 +116,29 @@ src/cartera/
 Three front-ends, one engine. See `docs/ARCHITECTURE.md` for the decisions
 behind the layering and `docs/adr/` for the log.
 
+## Development
+
+```bash
+uv sync                        # pinned dependencies, plus the validation tools
+scripts/install-validators.sh  # one-time: shellcheck, actionlint, taplo, typos, gitleaks, hadolint
+scripts/validate.sh            # everything: lint, types, security, deps, secrets, tests, coverage
+scripts/validate.sh --quick    # static only
+```
+
+| Check | Tool |
+| --- | --- |
+| Lint and format | ruff |
+| Static types | pyright (venv resolved via `pyrightconfig.json`) |
+| Python security | bandit, semgrep |
+| Dependency hygiene | deptry, pip-audit |
+| Dead code | vulture |
+| Workflows, YAML, TOML, shell, Dockerfile | actionlint, yamllint, taplo, shellcheck, hadolint |
+| Spelling, secrets in history | typos, gitleaks |
+| Dynamic: tests and coverage | pytest, coverage (gate at 70%) |
+
+CI runs `scripts/validate.sh` itself, so the pipeline and the local loop check the
+same things. A missing tool is reported as SKIP, never as a silent pass.
+
 ## Guarantees
 
 - No order placement, no broker credentials in this repository.

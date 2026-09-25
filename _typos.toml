@@ -1,0 +1,13 @@
+# Words that are not typos here. Every entry is a string that exists verbatim in
+# the upstream data sources, so "correcting" it would break the adapter:
+#   negociable  -> the endpoint name "negociable-obligations" (obligaciones negociables)
+#   oficial     -> dolarapi's `casa` value for the official rate (dólar oficial)
+# Adding a word here is a deliberate decision, not a way to silence the check.
+[default.extend-words]
+negociable = "negociable"
+oficial = "oficial"
+byma = "byma"
+cedears = "cedears"
+
+[files]
+extend-exclude = [".venv", "graphify-out", "*.lock"]

@@ -35,3 +35,26 @@ jobs:
 
       - name: Smoke check the capability manifest
         run: uv run cartera spec --json
+
+  # The same script a contributor runs locally, so CI and the local loop cannot
+  # drift: whatever is checked here is checked by `scripts/validate.sh`.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the secret scan walks the whole history
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies (locked)
+        run: uv sync --frozen
+
+      - name: Install the external validators
+        run: scripts/install-validators.sh
+
+      - name: Validation stack (static and dynamic)
+        run: PATH="$HOME/.local/bin:$PATH" scripts/validate.sh

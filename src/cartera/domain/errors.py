@@ -58,8 +58,7 @@ class StaleQuoteError(MarketDataError):
 
     def __init__(self, ticker: str, age_seconds: float, max_age_seconds: float) -> None:
         super().__init__(
-            f"quote for {ticker} is {age_seconds:.0f}s old, "
-            f"tolerance is {max_age_seconds:.0f}s",
+            f"quote for {ticker} is {age_seconds:.0f}s old, tolerance is {max_age_seconds:.0f}s",
         )
         self.ticker = ticker
         self.age_seconds = age_seconds

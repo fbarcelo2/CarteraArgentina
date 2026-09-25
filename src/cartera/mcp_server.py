@@ -33,8 +33,8 @@ INSTRUCTIONS = (
     "or cancel orders and holds no broker credentials: it values a portfolio you "
     "supplied and reports market data with its provenance. Every figure is "
     "computed in tested code — narrate those figures, never compute your own. "
-    "When a tool answers with {\"ok\": false} or a report comes back with "
-    "\"fresh\": false, the correct behaviour is to relay the reason, not to "
+    'When a tool answers with {"ok": false} or a report comes back with '
+    '"fresh": false, the correct behaviour is to relay the reason, not to '
     "estimate a number."
 )
 
@@ -89,8 +89,7 @@ def build_server() -> MCPServer:
             list[str] | None,
             Field(
                 description=(
-                    "Optional subset of: blue-chips, general-equity, cedears, "
-                    "public-bonds, corp-bonds, options."
+                    "Optional subset of: blue-chips, general-equity, cedears, public-bonds, corp-bonds, options."
                 )
             ),
         ] = None,

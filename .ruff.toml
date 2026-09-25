@@ -21,6 +21,10 @@ ignore = [
 "tests/**" = ["S101", "PLR2004", "ARG001", "ARG002"]
 "src/cartera/cli.py" = ["T201"]        # the CLI prints on purpose
 "src/cartera/mcp_server.py" = ["T201", "PLR0915"]  # a flat registry of tool definitions
+# Vulture's whitelist is a data file in Python clothing: bare names that vulture
+# reads as "used". It is never executed, so undefined-name and useless-expression
+# are exactly what it is supposed to contain.
+"vulture_whitelist.py" = ["F821", "B018"]
 
 [lint.isort]
 known-first-party = ["cartera"]

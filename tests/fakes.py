@@ -5,11 +5,15 @@ from __future__ import annotations
 from datetime import time
 
 from cartera.domain.models import Quote, Settlement
-from cartera.ports.market_data import MarketSession
+from cartera.ports.market_data import MarketSession, Universe
 
 
 class FakeMarketSource:
     """In-memory market source implementing ``cartera.ports.MarketDataSource``.
+
+    Typed against the port's own signatures (``Universe``, ``Settlement``) rather
+    than loose ``object`` annotations, so that a change to the protocol shows up
+    here as a type error instead of silently drifting from it.
 
     Use cases need a source whose timestamps the test controls: that is the only
     way to exercise the freshness gate deterministically, without waiting on the
@@ -34,7 +38,7 @@ class FakeMarketSource:
         )
         self.closed = False
 
-    async def fetch_universe(self, universe: object) -> list[Quote]:
+    async def fetch_universe(self, universe: Universe) -> list[Quote]:
         if self.error is not None:
             raise self.error
         return list(self.quotes)
@@ -42,7 +46,7 @@ class FakeMarketSource:
     async def fetch_quotes(
         self,
         tickers: list[str],
-        universes: list[object],
+        universes: list[Universe],
         settlements: tuple[Settlement, ...] = (),
     ) -> list[Quote]:
         if self.error is not None:

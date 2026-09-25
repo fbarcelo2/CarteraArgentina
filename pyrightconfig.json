@@ -1,0 +1,9 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["src", "tests"],
+  "typeCheckingMode": "basic",
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.13",
+  "exclude": ["**/.venv", "**/__pycache__", "graphify-out"]
+}
