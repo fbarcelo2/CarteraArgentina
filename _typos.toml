@@ -8,6 +8,9 @@ negociable = "negociable"
 oficial = "oficial"
 byma = "byma"
 cedears = "cedears"
+# ba -> the Buenos Aires exchange suffix in a Yahoo symbol (GGAL.BA, YPFD.BA). The
+# check reads it as a misspelling of "by"/"be"; it is part of a real identifier.
+ba = "ba"
 
 [files]
 extend-exclude = [".venv", "graphify-out", "*.lock"]
