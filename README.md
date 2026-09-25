@@ -49,9 +49,15 @@ Phase 0 — read-only core. No broker credentials are used or stored.
 ```bash
 git clone https://github.com/<your-user>/cartera-argentina.git
 cd cartera-argentina
-uv sync
+uv sync                              # the deterministic core
+uv sync --extra mcp --extra web      # if you want the MCP server and the UI
 uv run cartera doctor
 ```
+
+The extras are not part of the default install on purpose: the core does not need
+them, and a `uv sync` that pulls a web framework for a reader of quotes is a
+dependency you did not ask for. Unflagged commands below work on the core alone;
+the ones that need an extra say so.
 
 ## Quick start
 
@@ -67,6 +73,17 @@ uv run cartera portfolio import ~/mi-cartera.json
 
 # 4. Build the deterministic report
 uv run cartera report
+
+# 5. Record a view before the market settles it, then read the scoreboard
+uv run cartera proposal record AL30 --action sell --horizon 30 \
+  --rationale "looks rich at this level"
+uv run cartera proposal scoreboard
+
+# 6. Narrate the computed figures (needs CARTERA_LLM_BASE_URL; see .env.example)
+uv run cartera analyze --focus concentration
+
+# 7. The read-only UI (needs --extra web): loopback only, one token
+uv run --extra web cartera web --port 8787
 ```
 
 MCP clients (Claude Code, Hermes, any MCP host). Pass `--directory`: a bare
@@ -77,18 +94,25 @@ MCP clients (Claude Code, Hermes, any MCP host). Pass `--directory`: a bare
   "mcpServers": {
     "cartera": {
       "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/CarteraArgentina", "cartera-mcp"]
+      "args": [
+        "run",
+        "--extra",
+        "mcp",
+        "--directory",
+        "/absolute/path/to/CarteraArgentina",
+        "cartera-mcp"
+      ]
     }
   }
 }
 ```
 
 Tools exposed: `market_session`, `market_quotes`, `portfolio_import`,
-`portfolio_summary`, `portfolio_report`, `config_show`. The server also serves the
-analyst instructions as the resource `cartera://agent` and as the
-`portfolio_review` prompt, so a client inherits the invariants without a
-copy-pasted system prompt. See `docs/agent.md`. The machine-readable manifest is
-`uv run cartera spec --json`.
+`portfolio_summary`, `portfolio_report`, `config_show`, `proposal_record`,
+`proposal_scoreboard`. The server also serves the analyst instructions as the
+resource `cartera://agent` and as the `portfolio_review` prompt, so a client
+inherits the invariants without a copy-pasted system prompt. See `docs/agent.md`.
+The machine-readable manifest is `uv run cartera spec --json`.
 
 ## Data sources
 
