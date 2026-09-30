@@ -23,8 +23,9 @@ Instructions for AI agents (and humans) contributing to this repository.
 
 ## Conventions
 
-- **Language: English** for code, identifiers, comments, CLI copy, docs and
-  commit messages. This repository is public; mixed languages are debt from day one.
+- **Language: English** for code, identifiers, comments and commit messages.
+  Spanish is allowed for user-facing copy (CLI messages, user docs). This
+  repository is public: mixing languages anywhere else is debt from day one.
 - **Layering:** `domain` (pure, no I/O) ← `app` (use cases) ← front-ends
   (`cli`, `mcp_server`). Adapters implement ports; nothing else touches the world.
 - **Money:** `Decimal` only. Convert external floats via `cartera.domain.money.as_decimal`.
